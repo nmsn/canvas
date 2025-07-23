@@ -63,6 +63,13 @@ const FabricGridPage: FC<PageProps> = () => {
   const [isExternalDragging, setIsExternalDragging] = useState(false)
   const [draggedSourceSquare, setDraggedSourceSquare] = useState<DragSourceSquare | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number>(-1)
+  
+  // 选中状态
+  const [selectedSquare, setSelectedSquare] = useState<CanvasSquare | null>(null)
+  
+  // 用于区分点击和拖拽的状态
+  const [mouseDownPosition, setMouseDownPosition] = useState<{ x: number; y: number } | null>(null)
+  const [hasMoved, setHasMoved] = useState(false)
 
   /**
    * 预定义的正方形配置
@@ -426,31 +433,101 @@ const FabricGridPage: FC<PageProps> = () => {
   }, [])
 
   /**
+   * 更新选中状态的视觉效果
+   * @param square - 要更新的正方形
+   * @param isSelected - 是否选中
+   */
+  const updateSelectionVisual = useCallback((square: CanvasSquare, isSelected: boolean) => {
+    if (isSelected) {
+      square.fabricObject.set({
+        stroke: '#3B82F6', // 蓝色边框
+        strokeWidth: 4, // 2px 边框效果
+      })
+    } else {
+      square.fabricObject.set({
+        stroke: '#333', // 恢复原始边框颜色
+        strokeWidth: 2, // 恢复原始边框宽度
+      })
+    }
+    fabricCanvasRef.current?.requestRenderAll()
+  }, [])
+
+  /**
+   * 处理元素选中/取消选中
+   * @param square - 要选中的正方形
+   */
+  const handleSquareSelection = useCallback((square: CanvasSquare) => {
+    // 如果当前已有选中的元素，先取消其选中状态
+    if (selectedSquare && selectedSquare.id !== square.id) {
+      updateSelectionVisual(selectedSquare, false)
+    }
+    
+    // 如果点击的是当前选中的元素，则取消选中
+    if (selectedSquare && selectedSquare.id === square.id) {
+      updateSelectionVisual(square, false)
+      setSelectedSquare(null)
+    } else {
+      // 否则选中新元素
+      updateSelectionVisual(square, true)
+      setSelectedSquare(square)
+    }
+  }, [selectedSquare, updateSelectionVisual])
+
+  /**
    * 处理鼠标按下事件
    * @param e - Fabric.js 事件对象
    */
-  const handleMouseDown = useCallback((e: { target?: FabricObject }) => {
+  const handleMouseDown = useCallback((e: { target?: FabricObject; pointer?: { x: number; y: number } }) => {
     const target = e.target
+    const pointer = e.pointer
+
+    // 记录鼠标按下位置，用于区分点击和拖拽
+    if (pointer) {
+      setMouseDownPosition({ x: pointer.x, y: pointer.y })
+    }
+    setHasMoved(false)
 
     if (target) {
       const square = canvasSquares.find(s => s.fabricObject === target)
       if (square) {
-        setIsDragging(true)
         setDraggedSquare(square)
       }
+    } else {
+      // 点击空白区域，取消所有选中状态
+      if (selectedSquare) {
+        updateSelectionVisual(selectedSquare, false)
+        setSelectedSquare(null)
+      }
     }
-  }, [canvasSquares])
+  }, [canvasSquares, selectedSquare, updateSelectionVisual])
 
   /**
    * 处理鼠标释放事件
    */
-  const handleMouseUp = useCallback((e: { target?: FabricObject }) => {
+  const handleMouseUp = useCallback((e: { target?: FabricObject; pointer?: { x: number; y: number } }) => {
+    const target = e.target
+    const pointer = e.pointer
+    
+    // 判断是否为点击操作（没有移动或移动距离很小）
+    const isClick = !hasMoved && mouseDownPosition && pointer && 
+      Math.abs(pointer.x - mouseDownPosition.x) < 5 && 
+      Math.abs(pointer.y - mouseDownPosition.y) < 5
+    
+    if (isClick && target && draggedSquare) {
+      // 这是一个点击操作，处理选中逻辑
+      handleSquareSelection(draggedSquare)
+    }
+    
+    // 重置状态
     setIsDragging(false)
     setDraggedSquare(null)
+    setMouseDownPosition(null)
+    setHasMoved(false)
+    
     if (e.target && e.target?.opacity !== 1) {
       e.target.opacity = 1;
     }
-  }, [])
+  }, [hasMoved, mouseDownPosition, draggedSquare, handleSquareSelection])
 
   /**
    * 处理对象移动中事件
@@ -459,7 +536,17 @@ const FabricGridPage: FC<PageProps> = () => {
   const handleObjectMoving = useCallback((e: { target: FabricObject }) => {
     const obj = e.target
     const canvas = fabricCanvasRef.current
-    if (!canvas || !obj || !isDragging || !draggedSquare) return
+    
+    // 标记已经移动，用于区分点击和拖拽
+    setHasMoved(true)
+    
+    if (!canvas || !obj || !draggedSquare) return
+    
+    // 开始拖拽时设置拖拽状态
+    if (!isDragging) {
+      setIsDragging(true)
+    }
+    
     if (e.target) {
       e.target.opacity = 0.5;
     }
@@ -631,6 +718,9 @@ const FabricGridPage: FC<PageProps> = () => {
       // 移除占位符状态
       setIsDragging(false)
       setDraggedSquare(null)
+      setSelectedSquare(null) // 清空选中状态
+      setMouseDownPosition(null)
+      setHasMoved(false)
       fabricCanvasRef.current?.clear?.()
       setCanvasSquares([])
     }
@@ -643,6 +733,9 @@ const FabricGridPage: FC<PageProps> = () => {
     if (fabricCanvasRef.current) {
       setIsDragging(false)
       setDraggedSquare(null)
+      setSelectedSquare(null) // 清空选中状态
+      setMouseDownPosition(null)
+      setHasMoved(false)
 
       fabricCanvasRef.current?.clear?.()
       initializeSquares(fabricCanvasRef.current)
@@ -727,7 +820,7 @@ const FabricGridPage: FC<PageProps> = () => {
                 height={CANVAS_HEIGHT} 
                 className="border border-gray-300"
                 onDragOver={(e) => e.preventDefault()}
-                onDrop={handleExternalDrop}
+                onDrop={(e) => handleExternalDrop(e.nativeEvent)}
               />
             </div>
 
@@ -755,13 +848,26 @@ const FabricGridPage: FC<PageProps> = () => {
                   {canvasSquares.map((square, index) => (
                     <span key={square.id} className="ml-2">
                       <span
-                        className="inline-block w-4 h-4 rounded"
+                        className={`inline-block w-4 h-4 rounded ${
+                          selectedSquare && selectedSquare.id === square.id 
+                            ? 'ring-2 ring-blue-500 ring-offset-1' 
+                            : ''
+                        }`}
                         style={{ backgroundColor: square.config.color }}
                       ></span>
                       {index < canvasSquares.length - 1 ? ' → ' : ''}
                     </span>
                   ))}
                 </p>
+                {selectedSquare && (
+                  <p className="text-blue-800 text-sm mt-2">
+                    当前选中: <span
+                      className="inline-block w-4 h-4 rounded ml-1 mr-1"
+                      style={{ backgroundColor: selectedSquare.config.color }}
+                    ></span>
+                    {selectedSquare.config.color} 正方形
+                  </p>
+                )}
               </div>
             )}
           </div>
