@@ -1,37 +1,16 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback, type FC } from 'react'
-import { Canvas, Line, type FabricObject } from 'fabric'
+import { Canvas, type Line, type FabricObject } from 'fabric'
 import hljs from 'highlight.js/lib/core';
 import typescript from 'highlight.js/lib/languages/typescript.js';
 import 'highlight.js/styles/github-dark.css';
+import { getDrawFunctions, type DrawFunction, type LineParams } from './func'
 
 const CANVAS_WIDTH = 600
 const CANVAS_HEIGHT = 400
 
 hljs.registerLanguage('javascript', typescript);
-
-/**
- * 绘制函数接口
- */
-interface DrawFunction {
-  id: string
-  name: string
-  displayName: string
-  description: string
-  execute: (canvas: Canvas, params?: LineParams) => FabricObject
-  defaultParams: LineParams
-}
-
-/**
- * 线条参数接口
- */
-interface LineParams {
-  x1: number
-  y1: number
-  x2: number
-  y2: number
-}
 
 /**
  * 绘制记录接口
@@ -42,7 +21,7 @@ interface DrawRecord {
   displayName: string
   params: LineParams
   timestamp: number
-  fabricObject: FabricObject
+  fabricObject: FabricObject | FabricObject[]
   codeSnippet: string
 }
 
@@ -68,70 +47,15 @@ const FabricCalcPage: FC<PageProps> = () => {
   const [draggedFunction, setDraggedFunction] = useState<DrawFunction | null>(null)
   const [copied, setCopied] = useState(false)
 
-  /**
-   * 绘制横线函数
-   * @param canvas - Fabric.js 画布实例
-   * @param params - 绘制参数
-   * @returns 绘制的线条对象
-   */
-  const drawHorizontalLine = useCallback((canvas: Canvas, params = { x1: 50, y1: 200, x2: 250, y2: 200 }) => {
-    const line = new Line([params.x1, params.y1, params.x2, params.y2], {
-      stroke: '#FF6B6B',
-      strokeWidth: 3,
-      selectable: true,
-      evented: true,
-    })
-    canvas.add(line)
-    canvas.requestRenderAll()
-    return line
-  }, [])
-
-  /**
-   * 绘制竖线函数
-   * @param canvas - Fabric.js 画布实例
-   * @param params - 绘制参数
-   * @returns 绘制的线条对象
-   */
-  const drawVerticalLine = useCallback((canvas: Canvas, params = { x1: 300, y1: 50, x2: 300, y2: 250 }) => {
-    const line = new Line([params.x1, params.y1, params.x2, params.y2], {
-      stroke: '#4ECDC4',
-      strokeWidth: 3,
-      selectable: true,
-      evented: true,
-    })
-    canvas.add(line)
-    canvas.requestRenderAll()
-    return line
-  }, [])
-
-  /**
-   * 可用的绘制函数列表
-   */
-  const drawFunctions: DrawFunction[] = [
-    {
-      id: 'horizontal-line',
-      name: 'drawHorizontalLine',
-      displayName: '绘制横线',
-      description: '在画布上绘制一条水平线',
-      execute: drawHorizontalLine,
-      defaultParams: { x1: 50, y1: 200, x2: 250, y2: 200 }
-    },
-    {
-      id: 'vertical-line',
-      name: 'drawVerticalLine',
-      displayName: '绘制竖线',
-      description: '在画布上绘制一条垂直线',
-      execute: drawVerticalLine,
-      defaultParams: { x1: 300, y1: 50, x2: 300, y2: 250 }
-    }
-  ]
+  // 获取所有绘制函数
+  const drawFunctions = getDrawFunctions()
 
   /**
    * 获取所有绘制记录的合并代码（纯文本格式，用于复制）
    */
   const getCombinedCodePlain = useCallback(() => {
     if (drawRecords.length === 0) return ''
-    return drawRecords.map(record => 
+    return drawRecords.map(record =>
       `${record.functionName}(${JSON.stringify(record.params, null, 2)});`
     ).join('\n\n')
   }, [drawRecords])
@@ -143,7 +67,7 @@ const FabricCalcPage: FC<PageProps> = () => {
     if (drawRecords.length === 0) return ''
     return drawRecords.map(record => {
       const codeString = `${record.functionName}(${JSON.stringify(record.params, null, 2)});`
-      return hljs.highlight(codeString, {language: 'javascript'}).value
+      return hljs.highlight(codeString, { language: 'javascript' }).value
     }).join('\n\n')
   }, [drawRecords])
 
@@ -153,7 +77,7 @@ const FabricCalcPage: FC<PageProps> = () => {
   const copyCodeToClipboard = useCallback(async () => {
     const code = getCombinedCodePlain()
     if (!code) return
-    
+
     try {
       await navigator.clipboard.writeText(code)
       setCopied(true)
@@ -168,18 +92,18 @@ const FabricCalcPage: FC<PageProps> = () => {
    * @param drawFunction - 要执行的绘制函数
    * @param customParams - 自定义参数
    */
-  const executeDrawFunction = useCallback((drawFunction: DrawFunction, customParams?: LineParams) => {
+  const executeDrawFunction = useCallback((drawFunction: DrawFunction, customParams: LineParams) => {
     if (!fabricCanvasRef.current) return
 
-    const params = customParams ?? drawFunction.defaultParams
-    const fabricObject = drawFunction.execute(fabricCanvasRef.current, params)
+    const params = customParams
+    const fabricObject = drawFunction.execute(fabricCanvasRef.current, customParams)
 
     // 创建绘制记录
     const codeString = `${drawFunction.name}(${JSON.stringify(params, null, 2)});`;
-    const highlightedCode = hljs.highlight(codeString, {language: 'javascript'}).value;
+    const highlightedCode = hljs.highlight(codeString, { language: 'javascript' }).value;
 
     const record: DrawRecord = {
-      id: `${Date.now()}-${drawFunction.id}`,
+      id: `${Date.now()}-${drawFunction.name}`,
       functionName: drawFunction.name,
       displayName: drawFunction.displayName,
       params,
@@ -223,20 +147,33 @@ const FabricCalcPage: FC<PageProps> = () => {
 
     // 根据拖拽位置调整绘制参数
     let customParams
-    if (draggedFunction.id === 'horizontal-line') {
-      customParams = {
-        x1: Math.max(0, dropX - 100),
-        y1: dropY,
-        x2: Math.min(CANVAS_WIDTH, dropX + 100),
-        y2: dropY
-      }
-    } else if (draggedFunction.id === 'vertical-line') {
-      customParams = {
-        x1: dropX,
-        y1: Math.max(0, dropY - 100),
-        x2: dropX,
-        y2: Math.min(CANVAS_HEIGHT, dropY + 100)
-      }
+    switch (draggedFunction.name) {
+      case 'drawHorizontalLine':
+        customParams = {
+          x: dropX,
+          y: dropY,
+        }
+        break
+      case 'drawVerticalLine':
+        customParams = {
+          x: dropX,
+          y: dropY,
+        }
+        break
+      case 'drawDiagonalLine':
+        customParams = {
+          x: dropX,
+          y: dropY,
+        }
+        break
+      case 'drawDashedLine':
+        customParams = {
+          x: dropX,
+          y: dropY,
+        }
+        break
+      default:
+        customParams = { x: 0, y: 0 }
     }
 
     executeDrawFunction(draggedFunction, customParams)
@@ -250,7 +187,12 @@ const FabricCalcPage: FC<PageProps> = () => {
   const deleteDrawRecord = useCallback((recordId: string) => {
     const record = drawRecords.find(r => r.id === recordId)
     if (record && fabricCanvasRef.current) {
-      fabricCanvasRef.current.remove(record.fabricObject)
+      if (Array.isArray(record.fabricObject)) {
+        record.fabricObject.forEach(obj => fabricCanvasRef.current?.remove(obj))
+      } else {
+        fabricCanvasRef.current.remove(record.fabricObject)
+      }
+
       fabricCanvasRef.current.requestRenderAll()
       setDrawRecords(prev => prev.filter(r => r.id !== recordId))
     }
@@ -266,10 +208,8 @@ const FabricCalcPage: FC<PageProps> = () => {
         // 获取线条的当前坐标
         const line = fabricObject as Line
         const updatedParams: LineParams = {
-          x1: Math.round((line.x1 ?? 0) + (line.left ?? 0)),
-          y1: Math.round((line.y1 ?? 0) + (line.top ?? 0)),
-          x2: Math.round((line.x2 ?? 0) + (line.left ?? 0)),
-          y2: Math.round((line.y2 ?? 0) + (line.top ?? 0))
+          x: Math.round((line.x1 ?? 0) + (line.left ?? 0)),
+          y: Math.round((line.y1 ?? 0) + (line.top ?? 0)),
         }
         return {
           ...record,
@@ -320,7 +260,6 @@ const FabricCalcPage: FC<PageProps> = () => {
     }
   }, [updateRecordParams])
 
-
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
@@ -334,49 +273,29 @@ const FabricCalcPage: FC<PageProps> = () => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* 左侧：画布 */}
-          <div className="lg:col-span-5 bg-white p-6 rounded-lg shadow-md">
-            <h2 className="text-xl font-semibold text-gray-700 mb-4">画布</h2>
-            <div
-              className="border border-gray-300 rounded-md overflow-hidden"
-              onDrop={handleCanvasDrop}
-              onDragOver={(e) => e.preventDefault()}
-            >
-              <canvas ref={canvasRef} />
-            </div>
-          </div>
-
-          {/* 中间：绘制函数列表 */}
+          {/* 左侧：绘制函数列表 */}
           <div className="lg:col-span-3 bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-xl font-semibold text-gray-700 mb-4">绘制函数</h2>
             <div className="space-y-4">
               {drawFunctions.map((func) => (
                 <div
-                  key={func.id}
+                  key={func.name}
                   className="p-4 border border-gray-200 rounded-md cursor-grab active:cursor-grabbing bg-gray-50 hover:bg-gray-100 transition-colors duration-200"
                   draggable
                   onDragStart={() => handleDragStart(func)}
                   onDragEnd={handleDragEnd}
                 >
-                  <div className="flex items-center space-x-3">
-                    {func.id === 'horizontal-line' ? (
-                      <svg width="40" height="20" className="flex-shrink-0">
-                        <line x1="5" y1="10" x2="35" y2="10" stroke="#FF6B6B" strokeWidth="3" />
-                      </svg>
-                    ) : (
-                      <svg width="20" height="40" className="flex-shrink-0">
-                        <line x1="10" y1="5" x2="10" y2="35" stroke="#4ECDC4" strokeWidth="3" />
-                      </svg>
-                    )}
-                    <div>
-                      <h3 className="font-medium text-gray-800">{func.displayName}</h3>
-                      <p className="text-sm text-gray-500">{func.description}</p>
+                  <div>
+                    <h3 className="font-bold text-gray-800 text-lg mb-1">{func.displayName}</h3>
+                    {/* <p className="text-sm text-gray-600">{func.description}</p> */}
+                    <div className="text-xs text-gray-500 mt-2 font-mono">
+                      {func.name}()
                     </div>
                   </div>
                 </div>
               ))}
             </div>
-            
+
             {isDragging && draggedFunction && (
               <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="text-sm text-blue-800">
@@ -391,6 +310,18 @@ const FabricCalcPage: FC<PageProps> = () => {
             >
               清空画布
             </button>
+          </div>
+
+          {/* 中间：画布 */}
+          <div className="lg:col-span-5 bg-white p-6 rounded-lg shadow-md">
+            <h2 className="text-xl font-semibold text-gray-700 mb-4">画布</h2>
+            <div
+              className="border border-gray-300 rounded-md overflow-hidden"
+              onDrop={handleCanvasDrop}
+              onDragOver={(e) => e.preventDefault()}
+            >
+              <canvas ref={canvasRef} />
+            </div>
           </div>
 
           {/* 右侧：绘制记录和代码 */}

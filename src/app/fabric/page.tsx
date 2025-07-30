@@ -39,6 +39,16 @@ interface DragSourceSquare {
 }
 
 /**
+ * 预定义的正方形配置
+ */
+const squareConfigs: SquareConfig[] = [
+  { id: '1', color: '#FF6B6B', size: 80, position: 0 },
+  { id: '2', color: '#4ECDC4', size: 80, position: 1 },
+  { id: '3', color: '#45B7D1', size: 80, position: 2 },
+  { id: '4', color: '#96CEB4', size: 80, position: 3 },
+]
+
+/**
  * 页面属性接口
  */
 type PageProps = Record<string, never>
@@ -58,28 +68,20 @@ const FabricGridPage: FC<PageProps> = () => {
   // 拖拽状态
   const [isDragging, setIsDragging] = useState(false)
   const [draggedSquare, setDraggedSquare] = useState<CanvasSquare | null>(null)
-  
+
   // 外部拖拽状态
   const [isExternalDragging, setIsExternalDragging] = useState(false)
   const [draggedSourceSquare, setDraggedSourceSquare] = useState<DragSourceSquare | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number>(-1)
-  
+
   // 选中状态
   const [selectedSquare, setSelectedSquare] = useState<CanvasSquare | null>(null)
-  
+
   // 用于区分点击和拖拽的状态
   const [mouseDownPosition, setMouseDownPosition] = useState<{ x: number; y: number } | null>(null)
   const [hasMoved, setHasMoved] = useState(false)
 
-  /**
-   * 预定义的正方形配置
-   */
-  const squareConfigs: SquareConfig[] = [
-    { id: '1', color: '#FF6B6B', size: 80, position: 0 },
-    { id: '2', color: '#4ECDC4', size: 80, position: 1 },
-    { id: '3', color: '#45B7D1', size: 80, position: 2 },
-    { id: '4', color: '#96CEB4', size: 80, position: 3 },
-  ]
+
 
   /**
    * 拖拽源正方形配置
@@ -143,21 +145,21 @@ const FabricGridPage: FC<PageProps> = () => {
    */
   const calculateInsertIndex = useCallback((mouseX: number, mouseY: number, size: number): number => {
     if (!canvasRef.current) return canvasSquares.length
-    
+
     const canvasRect = canvasRef.current.getBoundingClientRect()
     const canvasX = mouseX - canvasRect.left
     const canvasY = mouseY - canvasRect.top
-    
+
     // 检查是否在画布范围内
     if (canvasX < 0 || canvasX > CANVAS_WIDTH || canvasY < 0 || canvasY > CANVAS_HEIGHT) {
       return -1 // 不在画布范围内
     }
-    
+
     const spacing = PADDING
     const newCount = canvasSquares.length + 1 // 包含即将插入的正方形
     const totalWidth = newCount * size + (newCount - 1) * spacing
     const startX = (CANVAS_WIDTH - totalWidth) / 2
-    
+
     // 计算插入位置
     const relativeX = canvasX - startX
     const index = Math.floor(relativeX / (size + spacing) + 0.5)
@@ -189,7 +191,7 @@ const FabricGridPage: FC<PageProps> = () => {
         setCanvasSquares(newSquares)
       }
     }
-    
+
     return newSquares;
   }, [canvasSquares])
 
@@ -279,20 +281,20 @@ const FabricGridPage: FC<PageProps> = () => {
    */
   const makeSpaceForExternalDrag = useCallback((insertIndex: number) => {
     if (!fabricCanvasRef.current || insertIndex < 0) return
-    
+
     const centerY = getVerticalCenterPosition()
     const newCount = canvasSquares.length + 1
-    
+
     canvasSquares.forEach((square, currentIndex) => {
       let newIndex = currentIndex
-      
+
       // 如果当前索引大于等于插入位置，需要向右移动
       if (currentIndex >= insertIndex) {
         newIndex = currentIndex + 1
       }
-      
+
       const newX = calculateSquarePosition(newIndex, square.config.size, newCount)
-      
+
       // 平滑移动到新位置
       square.fabricObject.animate({
         left: newX,
@@ -312,12 +314,12 @@ const FabricGridPage: FC<PageProps> = () => {
    */
   const addSquareToCanvas = useCallback((sourceSquare: DragSourceSquare, insertIndex: number) => {
     if (!fabricCanvasRef.current) return
-    
+
     const canvas = fabricCanvasRef.current
     const centerY = getVerticalCenterPosition()
     const newCount = canvasSquares.length + 1
     const xPosition = calculateSquarePosition(insertIndex, sourceSquare.size, newCount)
-    
+
     // 创建新的配置
     const newConfig: SquareConfig = {
       id: `${Date.now()}-${sourceSquare.id}`,
@@ -325,7 +327,7 @@ const FabricGridPage: FC<PageProps> = () => {
       size: sourceSquare.size,
       position: insertIndex,
     }
-    
+
     // 创建 Fabric.js 矩形对象
     const fabricRect = new Rect({
       left: xPosition,
@@ -346,10 +348,10 @@ const FabricGridPage: FC<PageProps> = () => {
       cornerStyle: 'circle',
       cornerSize: 8,
     })
-    
+
     // 添加到画布
     canvas.add(fabricRect)
-    
+
     // 创建画布正方形数据
     const newCanvasSquare: CanvasSquare = {
       id: newConfig.id,
@@ -357,23 +359,23 @@ const FabricGridPage: FC<PageProps> = () => {
       fabricObject: fabricRect,
       position: insertIndex,
     }
-    
+
     // 更新状态
     const newSquares = [...canvasSquares]
     newSquares.splice(insertIndex, 0, newCanvasSquare)
-    
+
     // 更新所有正方形的位置索引
     newSquares.forEach((square, index) => {
       square.position = index
     })
-    
+
     setCanvasSquares(newSquares)
-    
+
     // 重新排列所有正方形
     setTimeout(() => {
       rearrangeSquares(true, newSquares)
     }, 50)
-    
+
     canvas.requestRenderAll()
   }, [canvasSquares, getVerticalCenterPosition, calculateSquarePosition, rearrangeSquares])
 
@@ -461,7 +463,7 @@ const FabricGridPage: FC<PageProps> = () => {
     if (selectedSquare && selectedSquare.id !== square.id) {
       updateSelectionVisual(selectedSquare, false)
     }
-    
+
     // 如果点击的是当前选中的元素，则取消选中
     if (selectedSquare && selectedSquare.id === square.id) {
       updateSelectionVisual(square, false)
@@ -507,23 +509,23 @@ const FabricGridPage: FC<PageProps> = () => {
   const handleMouseUp = useCallback((e: { target?: FabricObject; pointer?: { x: number; y: number } }) => {
     const target = e.target
     const pointer = e.pointer
-    
+
     // 判断是否为点击操作（没有移动或移动距离很小）
-    const isClick = !hasMoved && mouseDownPosition && pointer && 
-      Math.abs(pointer.x - mouseDownPosition.x) < 5 && 
+    const isClick = !hasMoved && mouseDownPosition && pointer &&
+      Math.abs(pointer.x - mouseDownPosition.x) < 5 &&
       Math.abs(pointer.y - mouseDownPosition.y) < 5
-    
+
     if (isClick && target && draggedSquare) {
       // 这是一个点击操作，处理选中逻辑
       handleSquareSelection(draggedSquare)
     }
-    
+
     // 重置状态
     setIsDragging(false)
     setDraggedSquare(null)
     setMouseDownPosition(null)
     setHasMoved(false)
-    
+
     if (e.target && e.target?.opacity !== 1) {
       e.target.opacity = 1;
     }
@@ -536,17 +538,17 @@ const FabricGridPage: FC<PageProps> = () => {
   const handleObjectMoving = useCallback((e: { target: FabricObject }) => {
     const obj = e.target
     const canvas = fabricCanvasRef.current
-    
+
     // 标记已经移动，用于区分点击和拖拽
     setHasMoved(true)
-    
+
     if (!canvas || !obj || !draggedSquare) return
-    
+
     // 开始拖拽时设置拖拽状态
     if (!isDragging) {
       setIsDragging(true)
     }
-    
+
     if (e.target) {
       e.target.opacity = 0.5;
     }
@@ -603,7 +605,7 @@ const FabricGridPage: FC<PageProps> = () => {
     setIsExternalDragging(false)
     setDraggedSourceSquare(null)
     setDragOverIndex(-1)
-    
+
     // 恢复所有正方形到原始位置
     if (canvasSquares.length > 0) {
       rearrangeSquares(true, canvasSquares)
@@ -616,12 +618,12 @@ const FabricGridPage: FC<PageProps> = () => {
    */
   const handleExternalDragMove = useCallback((e: DragEvent) => {
     if (!isExternalDragging || !draggedSourceSquare) return
-    
+
     const insertIndex = calculateInsertIndex(e.clientX, e.clientY, draggedSourceSquare.size)
-    
+
     if (insertIndex !== dragOverIndex) {
       setDragOverIndex(insertIndex)
-      
+
       if (insertIndex >= 0) {
         makeSpaceForExternalDrag(insertIndex)
       } else {
@@ -637,15 +639,15 @@ const FabricGridPage: FC<PageProps> = () => {
    */
   const handleExternalDrop = useCallback((e: DragEvent) => {
     e.preventDefault()
-    
+
     if (!isExternalDragging || !draggedSourceSquare) return
-    
+
     const insertIndex = calculateInsertIndex(e.clientX, e.clientY, draggedSourceSquare.size)
-    
+
     if (insertIndex >= 0) {
       addSquareToCanvas(draggedSourceSquare, insertIndex)
     }
-    
+
     handleExternalDragEnd()
   }, [isExternalDragging, draggedSourceSquare, calculateInsertIndex, addSquareToCanvas, handleExternalDragEnd])
 
@@ -694,15 +696,15 @@ const FabricGridPage: FC<PageProps> = () => {
       e.preventDefault()
       handleExternalDragMove(e)
     }
-    
+
     const handleDrop = (e: DragEvent) => {
       handleExternalDrop(e)
     }
-    
+
     if (isExternalDragging) {
       document.addEventListener('dragover', handleDragOver)
       document.addEventListener('drop', handleDrop)
-      
+
       return () => {
         document.removeEventListener('dragover', handleDragOver)
         document.removeEventListener('drop', handleDrop)
@@ -761,7 +763,7 @@ const FabricGridPage: FC<PageProps> = () => {
             <p className="text-sm text-gray-600 mb-4">
               拖拽下方的正方形到右侧画布中
             </p>
-            
+
             <div className="space-y-4">
               {dragSourceSquares.map((sourceSquare) => (
                 <div
@@ -782,7 +784,7 @@ const FabricGridPage: FC<PageProps> = () => {
                 </div>
               ))}
             </div>
-            
+
             {isExternalDragging && draggedSourceSquare && (
               <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="text-sm text-blue-800">
@@ -814,10 +816,10 @@ const FabricGridPage: FC<PageProps> = () => {
 
             {/* 画布容器 */}
             <div className="border-2 border-gray-200 rounded-lg p-4 bg-gray-50">
-              <canvas 
-                ref={canvasRef} 
-                width={CANVAS_WIDTH} 
-                height={CANVAS_HEIGHT} 
+              <canvas
+                ref={canvasRef}
+                width={CANVAS_WIDTH}
+                height={CANVAS_HEIGHT}
                 className="border border-gray-300"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleExternalDrop(e.nativeEvent)}
@@ -848,11 +850,10 @@ const FabricGridPage: FC<PageProps> = () => {
                   {canvasSquares.map((square, index) => (
                     <span key={square.id} className="ml-2">
                       <span
-                        className={`inline-block w-4 h-4 rounded ${
-                          selectedSquare && selectedSquare.id === square.id 
-                            ? 'ring-2 ring-blue-500 ring-offset-1' 
-                            : ''
-                        }`}
+                        className={`inline-block w-4 h-4 rounded ${selectedSquare && selectedSquare.id === square.id
+                          ? 'ring-2 ring-blue-500 ring-offset-1'
+                          : ''
+                          }`}
                         style={{ backgroundColor: square.config.color }}
                       ></span>
                       {index < canvasSquares.length - 1 ? ' → ' : ''}
