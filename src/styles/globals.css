@@ -4,3 +4,24 @@
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
+
+
+.blue-bg {
+  background-color: blue !important;
+  opacity: 0.8;
+  /* border: 2px dashed #0056b3 !important; */
+}
+
+
+.red-bg {
+  background-color: red !important;
+  opacity: 0.8;
+  /* border: 2px dashed #0056b3 !important; */
+}
+
+
+.yellow-bg {
+  background-color: yellow !important;
+  opacity: 0.8;
+  /* border: 2px dashed #0056b3 !important; */
+}
