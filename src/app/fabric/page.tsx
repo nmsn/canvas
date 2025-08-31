@@ -240,28 +240,24 @@ const FabricGridPage: FC<PageProps> = () => {
     const centerY = getVerticalCenterPosition()
     const originalIndex = draggedSquare.position
 
-    // 为其他正方形让出位置
-    canvasSquares.forEach((square, currentIndex) => {
-      if (square.id === draggedSquare.id) return
+    // 创建一个临时的正方形数组，模拟拖拽元素已经移动到目标位置的状态
+    const tempSquares = [...canvasSquares]
+    const draggedSquareIndex = tempSquares.findIndex(s => s.id === draggedSquare.id)
 
-      let newIndex = currentIndex
-
-      // 从左向右拖拽（原位置 < 目标位置）
-      if (originalIndex < targetIndex) {
-        // 在原位置和目标位置之间的元素需要向左移动
-        if (currentIndex > originalIndex && currentIndex <= targetIndex) {
-          newIndex = currentIndex - 1
-        }
+    if (draggedSquareIndex !== -1) {
+      // 从原位置移除拖拽元素
+      const removed = tempSquares.splice(draggedSquareIndex, 1)[0]
+      // 插入到目标位置
+      if (removed) {
+        tempSquares.splice(targetIndex, 0, removed)
       }
-      // 从右向左拖拽（原位置 > 目标位置）
-      else if (originalIndex > targetIndex) {
-        // 在目标位置和原位置之间的元素需要向右移动
-        if (currentIndex >= targetIndex && currentIndex < originalIndex) {
-          newIndex = currentIndex + 1
-        }
-      }
+    }
 
-      const newX = calculateSquarePosition(newIndex, square.config.size)
+    // 为其他正方形重新计算位置（排除正在拖拽的元素）
+    tempSquares.forEach((square, newIndex) => {
+      if (square.id === draggedSquare.id) return // 跳过正在拖拽的元素
+
+      const newX = calculateSquarePosition(newIndex, square.config.size, tempSquares.length)
 
       // 平滑移动到新位置
       square.fabricObject.animate({
@@ -520,16 +516,18 @@ const FabricGridPage: FC<PageProps> = () => {
       handleSquareSelection(draggedSquare)
     }
 
+    // 恢复拖拽元素的透明度
+    if (target && isDragging) {
+      target.set({ opacity: 1 })
+      fabricCanvasRef.current?.requestRenderAll()
+    }
+
     // 重置状态
     setIsDragging(false)
     setDraggedSquare(null)
     setMouseDownPosition(null)
     setHasMoved(false)
-
-    if (e.target && e.target?.opacity !== 1) {
-      e.target.opacity = 1;
-    }
-  }, [hasMoved, mouseDownPosition, draggedSquare, handleSquareSelection])
+  }, [hasMoved, mouseDownPosition, draggedSquare, handleSquareSelection, isDragging])
 
   /**
    * 处理对象移动中事件
@@ -547,10 +545,8 @@ const FabricGridPage: FC<PageProps> = () => {
     // 开始拖拽时设置拖拽状态
     if (!isDragging) {
       setIsDragging(true)
-    }
-
-    if (e.target) {
-      e.target.opacity = 0.5;
+      // 拖拽时保持完全不透明，避免在原位置留下占位符
+      obj.set({ opacity: 1 })
     }
 
     const centerY = getVerticalCenterPosition()
@@ -564,8 +560,13 @@ const FabricGridPage: FC<PageProps> = () => {
     // 实时计算目标位置并更新其他正方形位置
     const currentX = obj.left || 0
     const targetIndex = calculateTargetIndex(currentX, draggedSquare.config.size)
-    updateSquarePositionsRealtime(targetIndex, draggedSquare)
 
+    // 只有当目标位置发生变化时才更新其他元素位置
+    if (targetIndex !== draggedSquare.position) {
+      updateSquarePositionsRealtime(targetIndex, draggedSquare)
+    }
+
+    canvas.requestRenderAll()
   }, [isDragging, draggedSquare, getVerticalCenterPosition, calculateTargetIndex, updateSquarePositionsRealtime])
 
   /**
@@ -575,13 +576,14 @@ const FabricGridPage: FC<PageProps> = () => {
   const handleObjectModified = useCallback((e: { target: FabricObject }) => {
     const movedObject = e.target
     if (!movedObject || !draggedSquare) return
-    if (e.target) {
-      e.target.opacity = 1;
-    }
+
+    // 确保透明度恢复为1
+    movedObject.set({ opacity: 1 })
 
     // 计算最终位置并重新排列
     const currentX = movedObject.left || 0
     const targetIndex = calculateTargetIndex(currentX, draggedSquare.config.size)
+
     // 更新正方形顺序
     const newSquares = updateSquareOrder(draggedSquare, targetIndex)
 
@@ -806,12 +808,6 @@ const FabricGridPage: FC<PageProps> = () => {
               <p className="text-sm text-gray-600">
                 画布中的正方形支持拖拽换位排序，从左侧拖拽新的正方形可以添加到画布中。
               </p>
-
-              {isDragging && draggedSquare && (
-                <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
-                  正在拖拽: {draggedSquare.config.color} 正方形
-                </div>
-              )}
             </div>
 
             {/* 画布容器 */}
@@ -825,6 +821,13 @@ const FabricGridPage: FC<PageProps> = () => {
                 onDrop={(e) => handleExternalDrop(e.nativeEvent)}
               />
             </div>
+
+            {/* 拖拽提示横幅 - 移动到画布下方 */}
+            {isDragging && draggedSquare && (
+              <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-sm text-blue-800">
+                正在拖拽: {draggedSquare.config.color} 正方形
+              </div>
+            )}
 
             {/* 控制按钮 */}
             <div className="mt-4 flex gap-4 flex-wrap">

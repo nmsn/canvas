@@ -51,7 +51,7 @@ const SortablePage = () => {
       </div>
 
 
-      <div className="w-100 h-100 bg-amber-400" draggable="true" id='test' 
+      {/* <div className="w-100 h-100 bg-amber-400" draggable="true" id='test'
         onDragStart={(e) => {
           const test2Element = document.getElementById('test2');
           if (test2Element) {
@@ -61,7 +61,7 @@ const SortablePage = () => {
       >123</div>
       <div className="w-20 h-20 bg-amber-400" id="test2">
         <div className="w-10 h-10 bg-blue-400">0</div>
-        </div>
+      </div> */}
     </div>
   );
 };

@@ -33,7 +33,7 @@ export default function SortPage() {
       name: item.name
     }))
   )
-  
+
   const [rightItems, setRightItems] = useState<SquareItem[]>([])
   const [dragState, setDragState] = useState<DragState>({
     draggedItem: null,
@@ -61,15 +61,15 @@ export default function SortPage() {
 
   const handleDragOver = (e: React.DragEvent, targetIndex?: number) => {
     e.preventDefault()
-    
+
     if (targetIndex !== undefined) {
       setDragOverIndex(targetIndex)
-       
+
       // 计算插入位置 - 根据鼠标在元素上的精确位置决定左侧或右侧
       const rect = e.currentTarget.getBoundingClientRect()
       const x = e.clientX - rect.left
       const width = rect.width
-      
+
       // 更精确的位置判断：鼠标在元素左侧1/3区域插入到当前位置，右侧2/3区域插入到下一个位置
       const insertAt = x < width * 0.33 ? targetIndex : targetIndex + 1
       setInsertPosition(insertAt)
@@ -80,7 +80,7 @@ export default function SortPage() {
       const elementWidth = 80 // 每个元素宽度
       const spacing = 16 // 元素间距
       const totalItemWidth = elementWidth + spacing
-      
+
       if (rightItems.length === 0) {
         setInsertPosition(0)
       } else {
@@ -88,7 +88,7 @@ export default function SortPage() {
         const containerWidth = rect.width
         const totalElementsWidth = rightItems.length * totalItemWidth - spacing
         const startX = (containerWidth - totalElementsWidth) / 2
-        
+
         let insertAt = 0
         for (let i = 0; i <= rightItems.length; i++) {
           const elementCenter = startX + i * totalItemWidth - spacing / 2
@@ -113,12 +113,12 @@ export default function SortPage() {
 
   const handleDrop = (e: React.DragEvent, targetIndex?: number) => {
     e.preventDefault()
-    
+
     const { draggedItem, sourceArea } = dragState
     if (!draggedItem) return
 
     let insertIndex: number
-    
+
     if (targetIndex !== undefined) {
       insertIndex = targetIndex
     } else {
@@ -126,13 +126,13 @@ export default function SortPage() {
       const rect = rightAreaRef.current?.getBoundingClientRect()
       if (rect) {
         const mouseX = e.clientX - rect.left
-        
+
         if (rightItems.length === 0) {
           insertIndex = 0
         } else {
           // 计算鼠标在水平方向的位置比例
           const relativeX = mouseX / rect.width
-          
+
           // 更精确的位置计算
           if (relativeX <= 0.2) {
             insertIndex = 0 // 左侧释放，放在第一个位置
@@ -150,7 +150,7 @@ export default function SortPage() {
 
     // 确保插入索引在有效范围内
     insertIndex = Math.max(0, Math.min(insertIndex, rightItems.length))
-    
+
     // 检查是否需要真正改变位置
     let shouldReorder = true;
     if (sourceArea === 'right') {
@@ -194,7 +194,7 @@ export default function SortPage() {
         newItemPositions[item.id] = idx >= insertIndex ? idx + 1 : idx
       }
     })
-    
+
     // 添加新拖拽的元素位置
     newItemPositions[draggedItem.id] = insertIndex
     setItemPositions(newItemPositions)
@@ -206,7 +206,7 @@ export default function SortPage() {
     if (sourceArea === 'left') {
       // 从左侧拖到右侧
       setLeftItems(prev => prev.filter(item => item.id !== draggedItem.id))
-      
+
       setRightItems(prev => {
         const newItems = [...prev]
         newItems.splice(insertIndex, 0, draggedItem)
@@ -220,13 +220,13 @@ export default function SortPage() {
       setRightItems(prev => {
         const newItems = [...prev]
         newItems.splice(currentIndex, 1)
-        
+
         // 调整插入位置，如果移除的位置在插入位置之前
         let adjustedInsertIndex = insertIndex
         if (currentIndex < adjustedInsertIndex) {
           adjustedInsertIndex--
         }
-        
+
         newItems.splice(adjustedInsertIndex, 0, draggedItem)
         return newItems
       })
@@ -281,7 +281,8 @@ export default function SortPage() {
               {leftItems.map((item) => (
                 <div
                   key={item.id}
-                  className="aspect-square rounded-lg cursor-grab active:cursor-grabbing transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg"
+                  className={`aspect-square rounded-lg cursor-grab active:cursor-grabbing transition-all duration-200 hover:scale-105 shadow-md hover:shadow-lg ${draggingItem?.id === item.id ? 'opacity-0 scale-0' : ''
+                    }`}
                   style={{ backgroundColor: item.color }}
                   draggable
                   onDragStart={() => handleDragStart(item, 'left')}
@@ -304,13 +305,13 @@ export default function SortPage() {
               onDragLeave={handleDragLeave}
               onDrop={(e) => handleDrop(e)}
               onDragEnter={() => {
-              // 拖拽到右侧区域空白处
-              if (rightItems.length === 0) {
-                setInsertPosition(0)
-              } else {
-                setInsertPosition(rightItems.length)
-              }
-            }}
+                // 拖拽到右侧区域空白处
+                if (rightItems.length === 0) {
+                  setInsertPosition(0)
+                } else {
+                  setInsertPosition(rightItems.length)
+                }
+              }}
             >
               {rightItems.length === 0 ? (
                 <div className="text-gray-400 text-center">
@@ -323,9 +324,9 @@ export default function SortPage() {
                     <React.Fragment key={item.id}>
                       {/* 实际元素作为占位符 - 拖拽时显示在目标位置 */}
                       {insertPosition === index && draggingItem && (
-                        <div 
+                        <div
                           className="w-16 h-16 rounded-lg transition-all duration-300 ease-in-out flex-shrink-0 cursor-grabbing"
-                          style={{ 
+                          style={{
                             backgroundColor: draggingItem.color,
                             opacity: 0.5,
                             margin: '0.25rem',
@@ -333,14 +334,12 @@ export default function SortPage() {
                           }}
                         />
                       )}
-                      
+
                       {/* 实际元素 - 拖拽时半透明显示，否则正常显示 */}
-                      <div 
-                        className={`flex items-center transition-all duration-300 ease-in-out transform ${
-                          isAnimating ? 'scale-105' : 'scale-100'
-                        } ${
-                          dragOverIndex === index ? 'scale-110' : ''
-                        }`}
+                      <div
+                        className={`flex items-center transition-all duration-300 ease-in-out transform ${isAnimating ? 'scale-105' : 'scale-100'
+                          } ${dragOverIndex === index ? 'scale-110' : ''
+                          }`}
                         style={{
                           transitionProperty: 'transform, opacity, margin-left',
                           transitionDuration: '300ms',
@@ -352,29 +351,28 @@ export default function SortPage() {
                         }}
                       >
                         <div
-                        className={`w-16 h-16 rounded-lg cursor-grab active:cursor-grabbing shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 ${
-                          dragOverIndex === index ? 'ring-4 ring-blue-400 ring-opacity-50' : ''
-                        }`}
-                        style={{ 
-                          backgroundColor: item.color,
-                          opacity: dragState.draggedItem?.id === item.id && draggingItem ? 0.5 : 1
-                        }}
-                        draggable
-                        onDragStart={() => handleDragStart(item, 'right')}
-                        onDragEnd={handleDragEnd}
-                        onDragOver={(e) => handleDragOver(e, index)}
-                        onDrop={(e) => {
-                          e.stopPropagation()
-                          handleDrop(e, index)
-                        }}
-                        onDragEnter={() => setDragOverIndex(index)}
-                        onDragLeave={() => setDragOverIndex(null)}
-                        title={item.name}
-                      />
+                          className={`w-16 h-16 rounded-lg cursor-grab active:cursor-grabbing shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105 ${dragOverIndex === index ? 'ring-4 ring-blue-400 ring-opacity-50' : ''
+                            } ${draggingItem?.id === item.id ? 'opacity-0 scale-0 w-[1px]' : ''}`}
+                          style={{
+                            backgroundColor: item.color,
+                            opacity: draggingItem?.id === item.id ? 0 : 1
+                          }}
+                          draggable
+                          onDragStart={() => handleDragStart(item, 'right')}
+                          onDragEnd={handleDragEnd}
+                          onDragOver={(e) => handleDragOver(e, index)}
+                          onDrop={(e) => {
+                            e.stopPropagation()
+                            handleDrop(e, index)
+                          }}
+                          onDragEnter={() => setDragOverIndex(index)}
+                          onDragLeave={() => setDragOverIndex(null)}
+                          title={item.name}
+                        />
                       </div>
                     </React.Fragment>
                   ))}
-                  
+
                   {/* 末尾占位符 - 只在最后位置显示 */}
                   {insertPosition === rightItems.length && draggingItem && (
                     <div 
