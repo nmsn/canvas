@@ -29,7 +29,34 @@ export default function PerfPage() {
   const [html2CanvasTime, setHtml2CanvasTime] = useState<number>(0)
   const [fabricTime, setFabricTime] = useState<number>(0)
 
+  // 存储DOM正方形数据
+  const [domSquares, setDomSquares] = useState<Array<{
+    id: number;
+    x: number;
+    y: number;
+    layers: Array<{ size: number; color: string }>;
+  }>>([])
 
+
+
+  // 生成DOM正方形数据的函数
+  const generateDomSquares = () => {
+    const squares = Array.from({ length: 20 }, (_, i) => ({
+      id: i,
+      x: (i % 5) * 100 + 25,
+      y: Math.floor(i / 5) * 100 + 25,
+      layers: [50, 40, 30, 20].map(size => ({
+        size,
+        color: getRandomColor()
+      }))
+    }))
+    setDomSquares(squares)
+  }
+
+  // 在useEffect中生成DOM正方形数据
+  useEffect(() => {
+    generateDomSquares()
+  }, [])
 
   // 初始化Fabric.js Canvas
   useEffect(() => {
@@ -169,21 +196,21 @@ export default function PerfPage() {
             DOM 实现 (20个四层嵌套正方形)
           </h2>
           <div ref={domContainerRef} className="relative p-4" style={{ width: '500px', height: '400px', backgroundColor: '#f3f4f6' }}>
-            {Array.from({ length: 20 }, (_, i) => (
-              <div key={i} className="absolute" style={{
-                left: `${(i % 5) * 100 + 25}px`,
-                top: `${Math.floor(i / 5) * 100 + 25}px`,
+            {domSquares.map((square) => (
+              <div key={square.id} className="absolute" style={{
+                left: `${square.x}px`,
+                top: `${square.y}px`,
               }}>
-                {[50, 40, 30, 20].map((size, layerIndex) => (
+                {square.layers.map((layer, layerIndex) => (
                   <div
                     key={layerIndex}
                     className="absolute"
                     style={{
-                      width: `${size}px`,
-                      height: `${size}px`,
-                      backgroundColor: getRandomColor(),
-                      left: `${(50 - size) / 2}px`,
-                      top: `${(50 - size) / 2}px`,
+                      width: `${layer.size}px`,
+                      height: `${layer.size}px`,
+                      backgroundColor: layer.color,
+                      left: `${(50 - layer.size) / 2}px`,
+                      top: `${(50 - layer.size) / 2}px`,
                     }}
                   />
                 ))}
