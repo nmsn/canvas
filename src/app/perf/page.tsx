@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Canvas, Rect } from 'fabric';
 
 import html2canvas from 'html2canvas';
@@ -12,13 +12,22 @@ const getRandomColor = (): string => {
   return colors[Math.floor(Math.random() * colors.length)] ?? '#000000'
 }
 
-// 生成四层颜色
-const colors = [getRandomColor(), getRandomColor(), getRandomColor(), getRandomColor()]
+
 
 export default function PerfPage() {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const fabricCanvasRef = useRef<Canvas>(null)
   const domContainerRef = useRef<HTMLDivElement>(null)
+
+  // 存储生成的图片
+  const [snapDomImage, setSnapDomImage] = useState<string>('')
+  const [html2CanvasImage, setHtml2CanvasImage] = useState<string>('')
+  const [fabricImage, setFabricImage] = useState<string>('')
+
+  // 存储执行时间
+  const [snapDomTime, setSnapDomTime] = useState<number>(0)
+  const [html2CanvasTime, setHtml2CanvasTime] = useState<number>(0)
+  const [fabricTime, setFabricTime] = useState<number>(0)
 
 
 
@@ -46,7 +55,7 @@ export default function PerfPage() {
               top: y - size / 2,
               width: size,
               height: size,
-              fill: colors[layerIndex] ?? '#000000',
+              fill: getRandomColor(),
               selectable: false
             })
             fabricCanvasRef.current?.add(rect)
@@ -74,12 +83,24 @@ export default function PerfPage() {
     console.log('开始执行 onSnapDom')
 
     if (domContainerRef.current) {
-      const png = await snapdom.toPng(domContainerRef.current);
-      document.body.appendChild(png);
+      try {
+        const png = await snapdom.toPng(domContainerRef.current);
+        // 将图片转换为 data URL 并保存到状态
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = png.width;
+        canvas.height = png.height;
+        ctx?.drawImage(png, 0, 0);
+        const dataUrl = canvas.toDataURL();
+        setSnapDomImage(dataUrl);
+      } catch (error) {
+        console.error('SnapDom 执行失败:', error);
+      }
     }
 
     const endTime = performance.now()
     const executionTime = endTime - startTime
+    setSnapDomTime(executionTime)
     console.log(`onSnapDom 执行完成，耗时: ${executionTime.toFixed(2)}ms`)
   };
 
@@ -104,7 +125,9 @@ export default function PerfPage() {
           backgroundColor: '#ffffff',
           foreignObjectRendering: foreignObjectRendering ?? false,
         });
-        document.body.appendChild(canvas);
+        // 将 canvas 转换为 data URL 并保存到状态
+        const dataUrl = canvas.toDataURL();
+        setHtml2CanvasImage(dataUrl);
       } catch (error) {
         console.error('html2canvas 执行失败:', error);
         // 提供备选方案或错误提示
@@ -114,6 +137,7 @@ export default function PerfPage() {
 
     const endTime = performance.now()
     const executionTime = endTime - startTime
+    setHtml2CanvasTime(executionTime)
     console.log(`onHtml2Canvas 执行完成，耗时: ${executionTime.toFixed(2)}ms`)
   };
 
@@ -123,12 +147,12 @@ export default function PerfPage() {
 
     if (fabricCanvasRef.current) {
       const png = fabricCanvasRef.current.toDataURL();
-      console.log(png);
-      // document.body.appendChild(png);
+      setFabricImage(png);
     }
 
     const endTime = performance.now()
     const executionTime = endTime - startTime
+    setFabricTime(executionTime)
     console.log(`onFabric2Pic 执行完成，耗时: ${executionTime.toFixed(2)}ms`)
   };
 
@@ -147,8 +171,8 @@ export default function PerfPage() {
           <div ref={domContainerRef} className="relative p-4" style={{ width: '500px', height: '400px', backgroundColor: '#f3f4f6' }}>
             {Array.from({ length: 20 }, (_, i) => (
               <div key={i} className="absolute" style={{
-                left: `${(i % 5) * 100}px`,
-                top: `${Math.floor(i / 5) * 100}px`,
+                left: `${(i % 5) * 100 + 25}px`,
+                top: `${Math.floor(i / 5) * 100 + 25}px`,
               }}>
                 {[50, 40, 30, 20].map((size, layerIndex) => (
                   <div
@@ -157,7 +181,7 @@ export default function PerfPage() {
                     style={{
                       width: `${size}px`,
                       height: `${size}px`,
-                      backgroundColor: colors[layerIndex] ?? '#000000',
+                      backgroundColor: getRandomColor(),
                       left: `${(50 - size) / 2}px`,
                       top: `${(50 - size) / 2}px`,
                     }}
@@ -213,6 +237,90 @@ export default function PerfPage() {
         >
           Fabric 导出
         </button>
+      </div>
+
+      {/* 图片展示区域 */}
+      <div className="mt-12 max-w-6xl mx-auto">
+        <h2 className="text-2xl font-bold text-center mb-8 text-gray-800">
+          截图结果展示
+        </h2>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          {/* SnapDOM 结果 */}
+          <div className="bg-white p-4 rounded-lg shadow-md">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4 text-center">
+              SnapDOM 截图结果
+            </h3>
+            <div className="flex justify-center items-center min-h-[200px] bg-gray-50 rounded">
+              {snapDomImage ? (
+                <img
+                  src={snapDomImage}
+                  alt="SnapDOM 截图"
+                  className="max-w-full max-h-[300px] object-contain border"
+                />
+              ) : (
+                <p className="text-gray-500">点击 "SnapDOM 截图" 按钮生成图片</p>
+              )}
+            </div>
+            {snapDomTime > 0 && (
+              <div className="mt-3 text-center">
+                <span className="text-sm text-blue-600 font-medium">
+                  执行耗时: {snapDomTime.toFixed(2)}ms
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Html2Canvas 结果 */}
+          <div className="bg-white p-4 rounded-lg shadow-md">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4 text-center">
+              Html2Canvas 截图结果
+            </h3>
+            <div className="flex justify-center items-center min-h-[200px] bg-gray-50 rounded">
+              {html2CanvasImage ? (
+                <img
+                  src={html2CanvasImage}
+                  alt="Html2Canvas 截图"
+                  className="max-w-full max-h-[300px] object-contain border"
+                />
+              ) : (
+                <p className="text-gray-500">点击 "Html2Canvas 截图" 按钮生成图片</p>
+              )}
+            </div>
+            {html2CanvasTime > 0 && (
+              <div className="mt-3 text-center">
+                <span className="text-sm text-green-600 font-medium">
+                  执行耗时: {html2CanvasTime.toFixed(2)}ms
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Fabric 结果 */}
+          <div className="bg-white p-4 rounded-lg shadow-md">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4 text-center">
+              Fabric 导出结果
+            </h3>
+            <div className="flex justify-center items-center min-h-[200px] bg-gray-50 rounded">
+              {fabricImage ? (
+                <img
+                  src={fabricImage}
+                  alt="Fabric 导出"
+                  className="max-w-full max-h-[300px] object-contain border"
+                />
+              ) : (
+                <p className="text-gray-500">点击 "Fabric 导出" 按钮生成图片</p>
+              )}
+            </div>
+            {fabricTime > 0 && (
+              <div className="mt-3 text-center">
+                <span className="text-sm text-purple-600 font-medium">
+                  执行耗时: {fabricTime.toFixed(2)}ms
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
