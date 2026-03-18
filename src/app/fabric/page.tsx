@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback, type FC } from 'react'
 import { Canvas, Rect, type FabricObject, util } from 'fabric'
+import Link from "next/link"
 
 const PADDING = 20;
 const SQUARE_WIDTH = 80;
@@ -749,6 +750,14 @@ const FabricGridPage: FC<PageProps> = () => {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
+        <div className="mb-8 flex items-center gap-4">
+          <Link
+            href="/"
+            className="text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            ← 返回首页
+          </Link>
+        </div>
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-4">
             Fabric.js 网格拖拽排序

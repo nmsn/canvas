@@ -1,5 +1,6 @@
 'use client'
 
+import Link from "next/link";
 import React, { useState, useRef } from 'react'
 
 interface SquareItem {
@@ -262,6 +263,14 @@ export default function SortPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
+        <div className="mb-8 flex items-center gap-4">
+          <Link
+            href="/"
+            className="text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            ← 返回首页
+          </Link>
+        </div>
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800 mb-4">
             拖拽排序示例
@@ -375,9 +384,9 @@ export default function SortPage() {
 
                   {/* 末尾占位符 - 只在最后位置显示 */}
                   {insertPosition === rightItems.length && draggingItem && (
-                    <div 
+                    <div
                       className="w-16 h-16 rounded-lg transition-all duration-300 ease-in-out flex-shrink-0 cursor-grabbing"
-                      style={{ 
+                      style={{
                         backgroundColor: draggingItem.color,
                         opacity: 0.5,
                         margin: '0.25rem',

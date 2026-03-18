@@ -1,5 +1,6 @@
 'use client'
 
+import Link from "next/link";
 import React, { useEffect, useRef, useState } from 'react'
 import { Canvas, Rect } from 'fabric';
 
@@ -185,167 +186,177 @@ export default function PerfPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 p-8">
-      <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">
-        DOM vs Canvas 性能比较
-      </h1>
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8 flex items-center gap-4">
+          <Link
+            href="/"
+            className="text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            ← 返回首页
+          </Link>
+        </div>
+        <h1 className="text-3xl font-bold text-center mb-8 text-gray-800">
+          DOM vs Canvas 性能比较
+        </h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
-        {/* DOM 实现区域 */}
-        <div className="bg-white p-4 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold text-gray-700 mb-4">
-            DOM 实现 (20个四层嵌套正方形)
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 max-w-6xl mx-auto">
+          {/* DOM 实现区域 */}
+          <div className="bg-white p-4 rounded-lg shadow-md">
+            <h2 className="text-xl font-semibold text-gray-700 mb-4">
+              DOM 实现 (20个四层嵌套正方形)
+            </h2>
+            <div ref={domContainerRef} className="relative p-4" style={{ width: '500px', height: '400px', backgroundColor: '#f3f4f6' }}>
+              {domSquares.map((square) => (
+                <div key={square.id} className="absolute" style={{
+                  left: `${square.x}px`,
+                  top: `${square.y}px`,
+                }}>
+                  {square.layers.map((layer, layerIndex) => (
+                    <div
+                      key={layerIndex}
+                      className="absolute"
+                      style={{
+                        width: `${layer.size}px`,
+                        height: `${layer.size}px`,
+                        backgroundColor: layer.color,
+                        left: `${(50 - layer.size) / 2}px`,
+                        top: `${(50 - layer.size) / 2}px`,
+                      }}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Canvas 实现区域 */}
+          <div className="bg-white p-4 rounded-lg shadow-md">
+            <h2 className="text-xl font-semibold text-gray-700 mb-4">
+              Canvas 实现 (20个四层嵌套正方形)
+            </h2>
+            <div className="p-4">
+              <canvas
+                ref={canvasRef}
+                className="border border-gray-300"
+                style={{ width: '500px', height: '400px' }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 text-center text-gray-600">
+          <p>左侧使用DOM元素实现，右侧使用Canvas实现</p>
+          <p>可以比较两种方式的渲染性能和交互体验</p>
+        </div>
+
+        <div className="mt-8 flex justify-center gap-4">
+          <button
+            onClick={onSnapDom}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            SnapDOM 截图
+          </button>
+          <button
+            onClick={() => onHtml2Canvas(false)}
+            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+          >
+            Html2Canvas 截图
+          </button>
+          <button
+            onClick={() => onHtml2Canvas(true)}
+            className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
+          >
+            Html2Canvas 截图 (foreignObjectRendering)
+          </button>
+          <button
+            onClick={onFabric2Pic}
+            className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
+          >
+            Fabric 导出
+          </button>
+        </div>
+
+        {/* 图片展示区域 */}
+        <div className="mt-12 max-w-6xl mx-auto">
+          <h2 className="text-2xl font-bold text-center mb-8 text-gray-800">
+            截图结果展示
           </h2>
-          <div ref={domContainerRef} className="relative p-4" style={{ width: '500px', height: '400px', backgroundColor: '#f3f4f6' }}>
-            {domSquares.map((square) => (
-              <div key={square.id} className="absolute" style={{
-                left: `${square.x}px`,
-                top: `${square.y}px`,
-              }}>
-                {square.layers.map((layer, layerIndex) => (
-                  <div
-                    key={layerIndex}
-                    className="absolute"
-                    style={{
-                      width: `${layer.size}px`,
-                      height: `${layer.size}px`,
-                      backgroundColor: layer.color,
-                      left: `${(50 - layer.size) / 2}px`,
-                      top: `${(50 - layer.size) / 2}px`,
-                    }}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* SnapDOM 结果 */}
+            <div className="bg-white p-4 rounded-lg shadow-md">
+              <h3 className="text-lg font-semibold text-gray-700 mb-4 text-center">
+                SnapDOM 截图结果
+              </h3>
+              <div className="flex justify-center items-center min-h-[200px] bg-gray-50 rounded">
+                {snapDomImage ? (
+                  <img
+                    src={snapDomImage}
+                    alt="SnapDOM 截图"
+                    className="max-w-full max-h-[300px] object-contain border"
                   />
-                ))}
+                ) : (
+                  <p className="text-gray-500">点击 "SnapDOM 截图" 按钮生成图片</p>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Canvas 实现区域 */}
-        <div className="bg-white p-4 rounded-lg shadow-md">
-          <h2 className="text-xl font-semibold text-gray-700 mb-4">
-            Canvas 实现 (20个四层嵌套正方形)
-          </h2>
-          <div className="p-4">
-            <canvas
-              ref={canvasRef}
-              className="border border-gray-300"
-              style={{ width: '500px', height: '400px' }}
-            />
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-8 text-center text-gray-600">
-        <p>左侧使用DOM元素实现，右侧使用Canvas实现</p>
-        <p>可以比较两种方式的渲染性能和交互体验</p>
-      </div>
-
-      <div className="mt-8 flex justify-center gap-4">
-        <button
-          onClick={onSnapDom}
-          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-        >
-          SnapDOM 截图
-        </button>
-        <button
-          onClick={() => onHtml2Canvas(false)}
-          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-        >
-          Html2Canvas 截图
-        </button>
-        <button
-          onClick={() => onHtml2Canvas(true)}
-          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600"
-        >
-          Html2Canvas 截图 (foreignObjectRendering)
-        </button>
-        <button
-          onClick={onFabric2Pic}
-          className="px-4 py-2 bg-purple-500 text-white rounded hover:bg-purple-600"
-        >
-          Fabric 导出
-        </button>
-      </div>
-
-      {/* 图片展示区域 */}
-      <div className="mt-12 max-w-6xl mx-auto">
-        <h2 className="text-2xl font-bold text-center mb-8 text-gray-800">
-          截图结果展示
-        </h2>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {/* SnapDOM 结果 */}
-          <div className="bg-white p-4 rounded-lg shadow-md">
-            <h3 className="text-lg font-semibold text-gray-700 mb-4 text-center">
-              SnapDOM 截图结果
-            </h3>
-            <div className="flex justify-center items-center min-h-[200px] bg-gray-50 rounded">
-              {snapDomImage ? (
-                <img
-                  src={snapDomImage}
-                  alt="SnapDOM 截图"
-                  className="max-w-full max-h-[300px] object-contain border"
-                />
-              ) : (
-                <p className="text-gray-500">点击 "SnapDOM 截图" 按钮生成图片</p>
+              {snapDomTime > 0 && (
+                <div className="mt-3 text-center">
+                  <span className="text-sm text-blue-600 font-medium">
+                    执行耗时: {snapDomTime.toFixed(2)}ms
+                  </span>
+                </div>
               )}
             </div>
-            {snapDomTime > 0 && (
-              <div className="mt-3 text-center">
-                <span className="text-sm text-blue-600 font-medium">
-                  执行耗时: {snapDomTime.toFixed(2)}ms
-                </span>
-              </div>
-            )}
-          </div>
 
-          {/* Html2Canvas 结果 */}
-          <div className="bg-white p-4 rounded-lg shadow-md">
-            <h3 className="text-lg font-semibold text-gray-700 mb-4 text-center">
-              Html2Canvas 截图结果
-            </h3>
-            <div className="flex justify-center items-center min-h-[200px] bg-gray-50 rounded">
-              {html2CanvasImage ? (
-                <img
-                  src={html2CanvasImage}
-                  alt="Html2Canvas 截图"
-                  className="max-w-full max-h-[300px] object-contain border"
-                />
-              ) : (
-                <p className="text-gray-500">点击 "Html2Canvas 截图" 按钮生成图片</p>
+            {/* Html2Canvas 结果 */}
+            <div className="bg-white p-4 rounded-lg shadow-md">
+              <h3 className="text-lg font-semibold text-gray-700 mb-4 text-center">
+                Html2Canvas 截图结果
+              </h3>
+              <div className="flex justify-center items-center min-h-[200px] bg-gray-50 rounded">
+                {html2CanvasImage ? (
+                  <img
+                    src={html2CanvasImage}
+                    alt="Html2Canvas 截图"
+                    className="max-w-full max-h-[300px] object-contain border"
+                  />
+                ) : (
+                  <p className="text-gray-500">点击 "Html2Canvas 截图" 按钮生成图片</p>
+                )}
+              </div>
+              {html2CanvasTime > 0 && (
+                <div className="mt-3 text-center">
+                  <span className="text-sm text-green-600 font-medium">
+                    执行耗时: {html2CanvasTime.toFixed(2)}ms
+                  </span>
+                </div>
               )}
             </div>
-            {html2CanvasTime > 0 && (
-              <div className="mt-3 text-center">
-                <span className="text-sm text-green-600 font-medium">
-                  执行耗时: {html2CanvasTime.toFixed(2)}ms
-                </span>
-              </div>
-            )}
-          </div>
 
-          {/* Fabric 结果 */}
-          <div className="bg-white p-4 rounded-lg shadow-md">
-            <h3 className="text-lg font-semibold text-gray-700 mb-4 text-center">
-              Fabric 导出结果
-            </h3>
-            <div className="flex justify-center items-center min-h-[200px] bg-gray-50 rounded">
-              {fabricImage ? (
-                <img
-                  src={fabricImage}
-                  alt="Fabric 导出"
-                  className="max-w-full max-h-[300px] object-contain border"
-                />
-              ) : (
-                <p className="text-gray-500">点击 "Fabric 导出" 按钮生成图片</p>
+            {/* Fabric 结果 */}
+            <div className="bg-white p-4 rounded-lg shadow-md">
+              <h3 className="text-lg font-semibold text-gray-700 mb-4 text-center">
+                Fabric 导出结果
+              </h3>
+              <div className="flex justify-center items-center min-h-[200px] bg-gray-50 rounded">
+                {fabricImage ? (
+                  <img
+                    src={fabricImage}
+                    alt="Fabric 导出"
+                    className="max-w-full max-h-[300px] object-contain border"
+                  />
+                ) : (
+                  <p className="text-gray-500">点击 "Fabric 导出" 按钮生成图片</p>
+                )}
+              </div>
+              {fabricTime > 0 && (
+                <div className="mt-3 text-center">
+                  <span className="text-sm text-purple-600 font-medium">
+                    执行耗时: {fabricTime.toFixed(2)}ms
+                  </span>
+                </div>
               )}
             </div>
-            {fabricTime > 0 && (
-              <div className="mt-3 text-center">
-                <span className="text-sm text-purple-600 font-medium">
-                  执行耗时: {fabricTime.toFixed(2)}ms
-                </span>
-              </div>
-            )}
           </div>
         </div>
       </div>

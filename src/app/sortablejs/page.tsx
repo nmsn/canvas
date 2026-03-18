@@ -1,5 +1,5 @@
-
 "use client"
+import Link from "next/link";
 import { useEffect } from 'react';
 import Sortable from 'sortablejs';
 import styles from './index.module.css';
@@ -36,22 +36,32 @@ const SortablePage = () => {
 
   }, [])
   return (
-    <div id="grid" className="row">
-      <h4 className="col-12">Grid Example</h4>
-      <div id="gridDemo" className={styles.container + ' col'}>
-        <div className={styles['grid-square']}>Item 1</div>
-        <div className={styles['grid-square']}>Item 2</div>
-        <div className={styles['grid-square']}>Item 3</div>
-        <div className={styles['grid-square']}>Item 4</div>
-      </div>
-      <h4 className="col-12">Grid Example</h4>
-      <div id="gridDemo2" className={styles.container + ' col'}>
-        <div className={styles['grid-square']}>Item 11</div>
-        <div className={styles['grid-square']}>Item 22</div>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-8 flex items-center gap-4">
+          <Link
+            href="/"
+            className="text-gray-600 hover:text-gray-800 transition-colors"
+          >
+            ← 返回首页
+          </Link>
+        </div>
+        <div id="grid" className="row">
+          <h4 className="col-12">Grid Example</h4>
+          <div id="gridDemo" className={styles.container + ' col'}>
+            <div className={styles['grid-square']}>Item 1</div>
+            <div className={styles['grid-square']}>Item 2</div>
+            <div className={styles['grid-square']}>Item 3</div>
+            <div className={styles['grid-square']}>Item 4</div>
+          </div>
+          <h4 className="col-12">Grid Example</h4>
+          <div id="gridDemo2" className={styles.container + ' col'}>
+            <div className={styles['grid-square']}>Item 11</div>
+            <div className={styles['grid-square']}>Item 22</div>
+          </div>
 
 
-      {/* <div className="w-100 h-100 bg-amber-400" draggable="true" id='test'
+          {/* <div className="w-100 h-100 bg-amber-400" draggable="true" id='test'
         onDragStart={(e) => {
           const test2Element = document.getElementById('test2');
           if (test2Element) {
@@ -62,6 +72,8 @@ const SortablePage = () => {
       <div className="w-20 h-20 bg-amber-400" id="test2">
         <div className="w-10 h-10 bg-blue-400">0</div>
       </div> */}
+        </div>
+      </div>
     </div>
   );
 };
