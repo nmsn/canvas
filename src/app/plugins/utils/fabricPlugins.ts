@@ -18,6 +18,7 @@ export type PluginLogger = (message: string, type?: PluginLogType) => void
 export interface DimensionPluginOptions {
   lineColor?: string
   textColor?: string
+  gapColor?: string
   fontSize?: number
   offset?: number
   tickLength?: number
@@ -61,19 +62,20 @@ interface LayoutResult {
 
 type LayoutSlot =
   | {
-      kind: 'peer'
-      width: number
-      obj: PluginCanvasObject
-    }
+    kind: 'peer'
+    width: number
+    obj: PluginCanvasObject
+  }
   | {
-      kind: 'placeholder'
-      width: number
-      obj: null
-    }
+    kind: 'placeholder'
+    width: number
+    obj: null
+  }
 
 const DEFAULT_DIMENSION_OPTIONS: Required<DimensionPluginOptions> = {
   lineColor: '#1677ff',
   textColor: '#1677ff',
+  gapColor: '#ea580c',
   fontSize: 11,
   offset: 16,
   tickLength: 4,
@@ -116,11 +118,47 @@ function getScaleY(object: PluginCanvasObject) {
 }
 
 function getLayoutWidth(object: PluginCanvasObject) {
+  const boundsWidth = toSceneBounds(object).width
+  if (boundsWidth > 0) {
+    return boundsWidth
+  }
+
+  const renderedWidth = object.getScaledWidth()
+  if (renderedWidth > 0) {
+    return renderedWidth
+  }
+
   return (object.data?.layoutWidth ?? object.width ?? 0) * getScaleX(object)
 }
 
 function getLayoutHeight(object: PluginCanvasObject) {
+  const boundsHeight = toSceneBounds(object).height
+  if (boundsHeight > 0) {
+    return boundsHeight
+  }
+
+  const renderedHeight = object.getScaledHeight()
+  if (renderedHeight > 0) {
+    return renderedHeight
+  }
+
   return (object.data?.layoutHeight ?? object.height ?? 0) * getScaleY(object)
+}
+
+function getVisualLeft(object: PluginCanvasObject) {
+  return toSceneBounds(object).left
+}
+
+function getTargetPositionForVisualPlacement(
+  object: PluginCanvasObject,
+  visualLeft: number,
+  visualTop: number,
+) {
+  const bounds = toSceneBounds(object)
+  return {
+    left: (object.left ?? 0) + (visualLeft - bounds.left),
+    top: (object.top ?? 0) + (visualTop - bounds.top),
+  }
 }
 
 function cancelAnimationMap(
@@ -236,6 +274,8 @@ export class DimensionPlugin {
       )
     }
 
+    this.drawGapAnnotations(context, objects, zoom)
+
     context.restore()
   }
 
@@ -285,6 +325,69 @@ export class DimensionPlugin {
     context.textAlign = 'center'
     context.textBaseline = 'middle'
     context.fillText(label, midX, midY)
+  }
+
+  private drawGapAnnotations(
+    context: CanvasRenderingContext2D,
+    objects: PluginCanvasObject[],
+    zoom: number,
+  ) {
+    if (objects.length < 2) {
+      return
+    }
+
+    const boundsList = objects
+      .map((object) => ({
+        object,
+        bounds: toSceneBounds(object),
+      }))
+      .sort((left, right) => left.bounds.left - right.bounds.left)
+
+    const tickLength = this.options.tickLength / zoom
+    const labelOffset = 14 / zoom
+    const lineWidth = 1 / zoom
+    const fontSize = this.options.fontSize / zoom
+
+    context.strokeStyle = this.options.gapColor
+    context.fillStyle = this.options.gapColor
+    context.lineWidth = lineWidth
+    context.setLineDash([4 / zoom, 4 / zoom])
+    context.font = `${fontSize}px ui-monospace, SFMono-Regular, Menlo, monospace`
+    context.textAlign = 'center'
+    context.textBaseline = 'bottom'
+
+    for (let index = 0; index < boundsList.length - 1; index += 1) {
+      const current = boundsList[index]!.bounds
+      const next = boundsList[index + 1]!.bounds
+      const verticalOverlap = Math.min(
+        current.top + current.height,
+        next.top + next.height,
+      ) - Math.max(current.top, next.top)
+
+      if (verticalOverlap <= 0) {
+        continue
+      }
+
+      const gapLeft = current.left + current.width
+      const gapRight = next.left
+      const gapWidth = gapRight - gapLeft
+      const lineY = Math.max(current.top + current.height, next.top + next.height) + labelOffset
+
+      context.beginPath()
+      context.moveTo(gapLeft, lineY)
+      context.lineTo(gapRight, lineY)
+      context.moveTo(gapLeft, lineY - tickLength)
+      context.lineTo(gapLeft, lineY + tickLength)
+      context.moveTo(gapRight, lineY - tickLength)
+      context.lineTo(gapRight, lineY + tickLength)
+      context.stroke()
+
+      context.fillText(
+        `${Math.round(gapWidth)}px`,
+        (gapLeft + gapRight) / 2,
+        lineY - 2 / zoom,
+      )
+    }
   }
 }
 
@@ -404,14 +507,21 @@ export class SortableSnapPlugin {
       return
     }
 
+    const lockedPosition = getTargetPositionForVisualPlacement(
+      target,
+      getVisualLeft(target),
+      this.dragRow.y,
+    )
     target.set({
-      top: this.dragRow.y,
+      left: lockedPosition.left,
+      top: lockedPosition.top,
     })
     target.setCoords()
 
+    const targetBounds = toSceneBounds(target)
     const insertIndex = this.computeInsertIndex(
-      target.left ?? 0,
-      getLayoutWidth(target),
+      targetBounds.left,
+      targetBounds.width,
       this.peerSlots,
     )
 
@@ -517,16 +627,26 @@ export class SortableSnapPlugin {
       this.peerSlots,
     )
 
+    const placeholderPosition = getTargetPositionForVisualPlacement(
+      this.placeholder,
+      placeholderX,
+      this.dragRow.y,
+    )
     this.placeholder.set({
-      left: placeholderX,
-      top: this.dragRow.y,
+      left: placeholderPosition.left,
+      top: placeholderPosition.top,
     })
     this.placeholder.setCoords()
 
     peerTargets.forEach(({ obj, x }) => {
       cancelAnimationMap(this.peerAnimations.get(obj))
+      const targetPosition = getTargetPositionForVisualPlacement(
+        obj,
+        x,
+        this.dragRow!.y,
+      )
       const animations = obj.animate(
-        { left: x, top: this.dragRow!.y },
+        { left: targetPosition.left, top: targetPosition.top },
         {
           duration: this.options.animDuration,
           easing: util.ease.easeOutCubic,
@@ -555,14 +675,19 @@ export class SortableSnapPlugin {
     const insertIndex =
       this.currentInsertIndex < 0 ? this.peerSlots.length : this.currentInsertIndex
     const { placeholderX } = this.computeLayout(insertIndex, target, this.peerSlots)
+    const settlePosition = getTargetPositionForVisualPlacement(
+      target,
+      placeholderX,
+      row.y,
+    )
 
     this.log?.(`释放 -> 吸附到 x=${Math.round(placeholderX)}`, 'snap')
 
     cancelAnimationMap(this.settleAnimations.get(target))
     const animations = target.animate(
       {
-        left: placeholderX,
-        top: row.y,
+        left: settlePosition.left,
+        top: settlePosition.top,
       },
       {
         duration: this.options.animDuration,
@@ -679,11 +804,17 @@ export class SortableSnapPlugin {
 
       const nextLeft = cursor
       const nextTop = row.y
-      cursor += getLayoutWidth(object) + this.options.gap
+      const objectWidth = getLayoutWidth(object)
+      const targetPosition = getTargetPositionForVisualPlacement(
+        object,
+        nextLeft,
+        nextTop,
+      )
+      cursor += objectWidth + this.options.gap
 
       if (animated) {
         const animations = object.animate(
-          { left: nextLeft, top: nextTop },
+          { left: targetPosition.left, top: targetPosition.top },
           {
             duration: this.options.animDuration,
             easing: util.ease.easeOutCubic,
@@ -699,7 +830,7 @@ export class SortableSnapPlugin {
         )
         this.settleAnimations.set(object, animations)
       } else {
-        object.set({ left: nextLeft, top: nextTop })
+        object.set({ left: targetPosition.left, top: targetPosition.top })
         object.setCoords()
       }
     })
@@ -733,6 +864,7 @@ export const SCENE_ROWS = {
 }
 
 const GRID_SIZE = 40
+const SHAPE_STROKE_WIDTH = 2
 
 const DEFAULT_COLORS = [
   '#1e40af',
@@ -818,13 +950,13 @@ export function createLabeledRect(params: {
         height,
         fill: `${color}20`,
         stroke: color,
-        strokeWidth: 2,
+        strokeWidth: SHAPE_STROKE_WIDTH,
         rx: 10,
         ry: 10,
       }),
       new FabricText(label, {
-        left: width / 2,
-        top: height / 2,
+        left: 0,
+        top: 0,
         originX: 'center',
         originY: 'center',
         fontSize: 12,
@@ -836,6 +968,8 @@ export function createLabeledRect(params: {
     {
       left,
       top,
+      stroke: color,
+      strokeWidth: 1,
       subTargetCheck: false,
       hasControls: false,
       hasBorders: false,
@@ -865,7 +999,7 @@ export function createCircleBadge(params: {
     radius,
     fill: `${color}20`,
     stroke: color,
-    strokeWidth: 2,
+    strokeWidth: SHAPE_STROKE_WIDTH,
     hasControls: false,
     hasBorders: false,
     lockScalingX: true,

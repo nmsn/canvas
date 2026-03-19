@@ -25,7 +25,7 @@ import {
 
 const CANVAS_WIDTH = 760
 const CANVAS_HEIGHT = 480
-const OBJECT_GAP = 14
+const OBJECT_GAP = 20
 
 type LogItem = {
   id: number
@@ -40,11 +40,40 @@ type StatsState = {
   selected: string
 }
 
-function getObjectLayoutWidth(object: { data?: Record<string, unknown>; width?: number; scaleX?: number | null; getScaledWidth: () => number }) {
+function getObjectBounds(object: {
+  data?: Record<string, unknown>
+  width?: number
+  scaleX?: number | null
+  getScaledWidth: () => number
+  getBoundingRect?: () => { left: number; width: number }
+  left?: number
+}) {
+  const bounds = object.getBoundingRect?.()
+  if (bounds) {
+    return bounds
+  }
+
+  return {
+    left: object.left ?? 0,
+    width: object.getScaledWidth(),
+  }
+}
+
+function getObjectLayoutWidth(object: { data?: Record<string, unknown>; width?: number; scaleX?: number | null; getScaledWidth: () => number; getBoundingRect?: () => { left: number; width: number }; left?: number }) {
+  const boundsWidth = getObjectBounds(object).width
+  if (boundsWidth > 0) {
+    return boundsWidth
+  }
+
+  const renderedWidth = object.getScaledWidth()
+  if (renderedWidth > 0) {
+    return renderedWidth
+  }
+
   const layoutWidth = typeof object.data?.layoutWidth === 'number'
     ? object.data.layoutWidth
     : object.width
-  return layoutWidth ? layoutWidth * (object.scaleX ?? 1) : object.getScaledWidth()
+  return layoutWidth ? layoutWidth * (object.scaleX ?? 1) : 0
 }
 
 const PRESET_ONE = [
@@ -125,12 +154,13 @@ export default function PluginsPage() {
       return
     }
 
-    const rightMost = businessObjects.reduce((max, object) => {
-      const objectRight = (object.left ?? 0) + getObjectLayoutWidth(object)
-      return Math.max(max, objectRight)
+    const nextCursor = businessObjects.reduce((max, object) => {
+      const bounds = getObjectBounds(object)
+      const objectRight = bounds.left + bounds.width
+      return Math.max(max, objectRight + OBJECT_GAP)
     }, 0)
 
-    rowOneCursorRef.current = rightMost + OBJECT_GAP
+    rowOneCursorRef.current = nextCursor
   }
 
   useEffect(() => {
