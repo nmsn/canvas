@@ -2,6 +2,7 @@ import Link from "next/link";
 
 const pages = [
   { href: "/fabric", title: "Fabric.js 网格拖拽排序", description: "使用 Fabric.js 实现网格拖拽排序功能" },
+  { href: "/plugins", title: "Fabric.js 插件页", description: "尺寸标注与横向换位吸附插件演示" },
   { href: "/mixCanvas", title: "Fabric.js 绘制计算器", description: "交互式工具，用于通过拖放功能在画布上绘制线条" },
   { href: "/perf", title: "DOM vs Canvas 性能比较", description: "比较 DOM 和 Canvas 的渲染性能和交互体验" },
   { href: "/sort", title: "拖拽排序示例", description: "纯 CSS + React 实现的拖拽排序功能" },

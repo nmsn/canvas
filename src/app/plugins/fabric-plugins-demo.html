@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fabric.js 插件演示</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f13;
+    --surface: #16161d;
+    --surface2: #1e1e28;
+    --border: #2a2a38;
+    --accent: #6c63ff;
+    --accent2: #00d4aa;
+    --danger: #ff6b6b;
+    --text: #e8e8f0;
+    --text-muted: #6b6b80;
+    --text-dim: #3a3a50;
+    --radius: 10px;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', sans-serif;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    padding: 16px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    background: var(--surface);
+  }
+
+  .logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: 0.05em;
+  }
+
+  .logo span { color: var(--text-muted); }
+
+  .header-tags {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+  }
+
+  .tag.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(108,99,255,0.08);
+  }
+
+  .layout {
+    display: flex;
+    flex: 1;
+    height: calc(100vh - 57px);
+  }
+
+  /* ── 侧边栏 ── */
+  .sidebar {
+    width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+
+  .sidebar-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .section-title {
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .plugin-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    margin-bottom: 8px;
+    transition: border-color 0.2s;
+  }
+
+  .plugin-card.on {
+    border-color: var(--accent);
+    background: rgba(108,99,255,0.05);
+  }
+
+  .plugin-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .plugin-name {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+  }
+
+  .plugin-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* Toggle Switch */
+  .toggle {
+    position: relative;
+    width: 32px;
+    height: 18px;
+    flex-shrink: 0;
+  }
+
+  .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+
+  .toggle-track {
+    position: absolute;
+    inset: 0;
+    background: var(--border);
+    border-radius: 9px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+
+  .toggle input:checked + .toggle-track { background: var(--accent); }
+
+  .toggle-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    pointer-events: none;
+  }
+
+  .toggle input:checked ~ .toggle-thumb { transform: translateX(14px); }
+
+  /* Buttons */
+  .btn-group { display: flex; flex-direction: column; gap: 6px; }
+
+  .btn {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--surface2);
+    color: var(--text-muted);
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.15s;
+    letter-spacing: 0.03em;
+  }
+
+  .btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(108,99,255,0.08); }
+  .btn.danger:hover { border-color: var(--danger); color: var(--danger); background: rgba(255,107,107,0.08); }
+
+  /* Color options */
+  .color-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  .color-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: transform 0.15s, border-color 0.15s;
+  }
+
+  .color-dot:hover { transform: scale(1.2); }
+  .color-dot.selected { border-color: white; transform: scale(1.15); }
+
+  /* ── Canvas 区域 ── */
+  .canvas-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    overflow: hidden;
+  }
+
+  .toolbar {
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+  }
+
+  .toolbar-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+  }
+
+  .canvas-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+    overflow: hidden;
+  }
+
+  .canvas-frame {
+    position: relative;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.03), 0 20px 60px rgba(0,0,0,0.5);
+  }
+
+  canvas { display: block; }
+
+  /* ── 状态栏 ── */
+  .statusbar {
+    padding: 6px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 16px;
+    background: var(--surface);
+  }
+
+  .stat {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+  }
+
+  .stat span { color: var(--accent2); }
+
+  /* ── 日志面板 ── */
+  .log-panel {
+    width: 240px;
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .log-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .log-clear {
+    font-size: 9px;
+    cursor: pointer;
+    color: var(--text-dim);
+    transition: color 0.15s;
+    background: none;
+    border: none;
+    font-family: var(--mono);
+    letter-spacing: 0.05em;
+  }
+
+  .log-clear:hover { color: var(--danger); }
+
+  .log-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .log-list::-webkit-scrollbar { width: 4px; }
+  .log-list::-webkit-scrollbar-track { background: transparent; }
+  .log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  .log-item {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    border-left: 2px solid transparent;
+    line-height: 1.4;
+  }
+
+  .log-item.info  { border-color: var(--accent);  color: #9c97ff; background: rgba(108,99,255,0.05); }
+  .log-item.snap  { border-color: var(--accent2); color: #00d4aa; background: rgba(0,212,170,0.05); }
+  .log-item.move  { border-color: var(--text-dim); }
+  .log-item.warn  { border-color: var(--danger);  color: #ff9999; background: rgba(255,107,107,0.05); }
+
+  /* 空状态提示 */
+  .empty-log {
+    text-align: center;
+    padding: 24px 8px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">fabric<span>.</span>plugins</div>
+  <div style="font-size:11px;color:var(--text-muted);">v5.3 · 插件系统演示</div>
+  <div class="header-tags">
+    <div class="tag" id="tag-dim">DimensionPlugin</div>
+    <div class="tag" id="tag-sort">SortableSnapPlugin</div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- 侧边栏 -->
+  <aside class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="section-title">插件控制</div>
+
+      <div class="plugin-card" id="card-dim">
+        <div class="plugin-header">
+          <div class="plugin-name">尺寸标注</div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-dim" onchange="toggleDimension(this.checked)">
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+        <div class="plugin-desc">标注所有元素的宽高和 (x,y) 坐标位置</div>
+      </div>
+
+      <div class="plugin-card" id="card-sort">
+        <div class="plugin-header">
+          <div class="plugin-name">换位吸附</div>
+          <label class="toggle">
+            <input type="checkbox" id="toggle-sort" onchange="toggleSort(this.checked)">
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+        </div>
+        <div class="plugin-desc">横向拖动时插入排序，释放后自动吸附</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">添加元素</div>
+      <div class="btn-group">
+        <button class="btn" onclick="addRect()">＋ 矩形 (行 1)</button>
+        <button class="btn" onclick="addRectRow2()">＋ 矩形 (行 2)</button>
+        <button class="btn" onclick="addCircle()">＋ 圆形 (行 1)</button>
+      </div>
+      <div class="section-title" style="margin-top:12px;">填充颜色</div>
+      <div class="color-row" id="colorRow"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="section-title">场景预设</div>
+      <div class="btn-group">
+        <button class="btn" onclick="loadPreset1()">预设 1：三列排布</button>
+        <button class="btn" onclick="loadPreset2()">预设 2：双行布局</button>
+        <button class="btn danger" onclick="clearCanvas()">清空画布</button>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- 画布区域 -->
+  <main class="canvas-area">
+    <div class="toolbar">
+      <span class="toolbar-label">CANVAS</span>
+      <span style="color:var(--text-dim);font-family:var(--mono);font-size:10px;">·</span>
+      <span class="toolbar-label" id="toolbar-info">拖动元素体验插件效果</span>
+    </div>
+
+    <div class="canvas-wrap">
+      <div class="canvas-frame">
+        <canvas id="c"></canvas>
+      </div>
+    </div>
+
+    <div class="statusbar">
+      <div class="stat">对象数 <span id="stat-count">0</span></div>
+      <div class="stat">行数 <span id="stat-rows">0</span></div>
+      <div class="stat">选中 <span id="stat-selected">—</span></div>
+    </div>
+  </main>
+
+  <!-- 日志 -->
+  <aside class="log-panel">
+    <div class="log-header">
+      EVENT LOG
+      <button class="log-clear" onclick="clearLog()">clear</button>
+    </div>
+    <div class="log-list" id="logList">
+      <div class="empty-log">暂无事件<br>开启插件后<br>开始拖动元素</div>
+    </div>
+  </aside>
+
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+//  画布初始化
+// ─────────────────────────────────────────────
+const CANVAS_W = 720;
+const CANVAS_H = 460;
+
+const canvas = new fabric.Canvas('c', {
+  width: CANVAS_W,
+  height: CANVAS_H,
+  backgroundColor: '#0f0f13',
+  selection: true,
+  preserveObjectStacking: true,
+});
+
+// 画背景网格
+(function drawGrid() {
+  const gridSize = 40;
+  const lines = [];
+  for (let x = 0; x <= CANVAS_W; x += gridSize) {
+    lines.push(new fabric.Line([x, 0, x, CANVAS_H], {
+      stroke: '#1e1e28', strokeWidth: 1,
+      selectable: false, evented: false, data: { isGrid: true }
+    }));
+  }
+  for (let y = 0; y <= CANVAS_H; y += gridSize) {
+    lines.push(new fabric.Line([0, y, CANVAS_W, y], {
+      stroke: '#1e1e28', strokeWidth: 1,
+      selectable: false, evented: false, data: { isGrid: true }
+    }));
+  }
+  canvas.add(...lines);
+  canvas.renderAll();
+})();
+
+// ─────────────────────────────────────────────
+//  颜色选择器
+// ─────────────────────────────────────────────
+const COLORS = [
+  '#6c63ff','#00d4aa','#ff6b6b','#ffd93d',
+  '#4ecdc4','#a29bfe','#fd79a8','#e17055',
+];
+let selectedColor = COLORS[0];
+
+const colorRow = document.getElementById('colorRow');
+COLORS.forEach(c => {
+  const dot = document.createElement('div');
+  dot.className = 'color-dot' + (c === selectedColor ? ' selected' : '');
+  dot.style.background = c;
+  dot.onclick = () => {
+    document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('selected'));
+    dot.classList.add('selected');
+    selectedColor = c;
+  };
+  colorRow.appendChild(dot);
+});
+
+// ─────────────────────────────────────────────
+//  状态栏更新
+// ─────────────────────────────────────────────
+function updateStats() {
+  const objs = canvas.getObjects().filter(o => !o.data?.isGrid && !o.data?.isPlaceholder && !o.data?.isDimAnnotation);
+  document.getElementById('stat-count').textContent = objs.length;
+
+  const rows = sortPlugin ? sortPlugin.rows.length : 0;
+  document.getElementById('stat-rows').textContent = rows;
+
+  const sel = canvas.getActiveObject();
+  if (sel) {
+    document.getElementById('stat-selected').textContent =
+      `(${Math.round(sel.left)}, ${Math.round(sel.top)}) ${Math.round(sel.getScaledWidth())}×${Math.round(sel.getScaledHeight())}`;
+  } else {
+    document.getElementById('stat-selected').textContent = '—';
+  }
+}
+
+canvas.on('selection:created', updateStats);
+canvas.on('selection:updated', updateStats);
+canvas.on('selection:cleared', updateStats);
+canvas.on('object:modified', updateStats);
+canvas.on('object:moving', updateStats);
+
+// ─────────────────────────────────────────────
+//  DimensionPlugin
+// ─────────────────────────────────────────────
+class DimensionPlugin {
+  constructor(canvas, opts = {}) {
+    this.canvas = canvas;
+    this.enabled = false;
+    this.opts = {
+      lineColor:  opts.lineColor  || '#6c63ff',
+      textColor:  opts.textColor  || '#6c63ff',
+      fontSize:   opts.fontSize   || 10,
+      offset:     opts.offset     || 18,
+      tickLen:    opts.tickLen    || 5,
+    };
+    this._disposers = [];
+    this._handler = () => this._draw();
+  }
+
+  enable() {
+    if (this.enabled) return;
+    this.enabled = true;
+    this.canvas.on('after:render', this._handler);
+    this.canvas.requestRenderAll();
+  }
+
+  disable() {
+    if (!this.enabled) return;
+    this.enabled = false;
+    this.canvas.off('after:render', this._handler);
+    this.canvas.requestRenderAll();
+  }
+
+  _draw() {
+    const ctx = this.canvas.getTopContext ? this.canvas.getTopContext() : this.canvas.upperCanvasEl.getContext('2d');
+    const objects = this.canvas.getObjects().filter(
+      o => !o.data?.isGrid && !o.data?.isPlaceholder && !o.data?.isDimAnnotation
+    );
+    const zoom = this.canvas.getZoom();
+    const vpt  = this.canvas.viewportTransform;
+
+    ctx.save();
+    if (vpt) ctx.transform(vpt[0],vpt[1],vpt[2],vpt[3],vpt[4],vpt[5]);
+
+    objects.forEach(obj => {
+      const b = obj.getBoundingRect(true);
+      const x = b.left, y = b.top, w = b.width, h = b.height;
+      const { lineColor, textColor, fontSize, offset, tickLen } = this.opts;
+      const lw = 1 / zoom;
+
+      ctx.strokeStyle = lineColor;
+      ctx.lineWidth = lw;
+      ctx.setLineDash([]);
+
+      // 宽度标注（上方）
+      this._measureLine(ctx, x, y-offset, x+w, y-offset, tickLen, `${Math.round(w)}px`, true, fontSize, textColor, zoom);
+      // 高度标注（右侧）
+      this._measureLine(ctx, x+w+offset, y, x+w+offset, y+h, tickLen, `${Math.round(h)}px`, false, fontSize, textColor, zoom);
+
+      // 坐标标注
+      ctx.fillStyle = 'rgba(108,99,255,0.7)';
+      ctx.font = `${fontSize/zoom}px JetBrains Mono, monospace`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`(${Math.round(obj.left)}, ${Math.round(obj.top)})`, x, y - offset - 3/zoom);
+    });
+
+    ctx.restore();
+  }
+
+  _measureLine(ctx, x1, y1, x2, y2, tickLen, label, isH, fontSize, color, zoom) {
+    const mx = (x1+x2)/2, my = (y1+y2)/2;
+    const tl = tickLen / zoom;
+    const fs = fontSize / zoom;
+
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+    if (isH) {
+      ctx.moveTo(x1, y1-tl); ctx.lineTo(x1, y1+tl);
+      ctx.moveTo(x2, y2-tl); ctx.lineTo(x2, y2+tl);
+    } else {
+      ctx.moveTo(x1-tl, y1); ctx.lineTo(x1+tl, y1);
+      ctx.moveTo(x2-tl, y2); ctx.lineTo(x2+tl, y2);
+    }
+    ctx.stroke();
+
+    ctx.font = `${fs}px JetBrains Mono, monospace`;
+    const tw = ctx.measureText(label).width;
+    const pad = 4/zoom;
+    ctx.fillStyle = 'rgba(15,15,19,0.9)';
+    ctx.fillRect(mx - tw/2 - pad, my - fs/2 - pad/2, tw + pad*2, fs + pad);
+    ctx.fillStyle = color;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, mx, my);
+  }
+}
+
+// ─────────────────────────────────────────────
+//  SortableSnapPlugin
+// ─────────────────────────────────────────────
+class SortableSnapPlugin {
+  constructor(canvas, opts = {}) {
+    this.canvas = canvas;
+    this.rows = [];
+    this.enabled = false;
+    this.opts = {
+      rowTolerance:     opts.rowTolerance     || 24,
+      gap:              opts.gap              || 14,
+      animDuration:     opts.animDuration     || 200,
+      placeholderColor: opts.placeholderColor || 'rgba(108,99,255,0.12)',
+      placeholderStroke:opts.placeholderStroke|| 'rgba(108,99,255,0.5)',
+    };
+    this._isDragging = false;
+    this._dragTarget = null;
+    this._dragRow = null;
+    this._placeholder = null;
+    this._peerSlots = [];
+    this._currentInsertIdx = -1;
+    this._onMoving = (e) => this._handleMoving(e);
+    this._onMouseUp = (e) => this._handleMouseUp(e);
+  }
+
+  initRows() {
+    const objects = this._getBusinessObjects();
+    this.rows = [];
+
+    objects.forEach(obj => {
+      const objTop = Math.round(obj.top || 0);
+      const row = this.rows.find(r => Math.abs(r.y - objTop) <= this.opts.rowTolerance);
+      if (row) {
+        row.objects.push(obj);
+      } else {
+        this.rows.push({ y: objTop, objects: [obj] });
+      }
+    });
+
+    this.rows.forEach(r => {
+      r.objects.sort((a, b) => (a.left||0) - (b.left||0));
+    });
+
+    log(`initRows: ${this.rows.length} 行，共 ${objects.length} 个元素`, 'info');
+    updateStats();
+  }
+
+  _getBusinessObjects() {
+    return this.canvas.getObjects().filter(
+      o => !o.data?.isGrid && !o.data?.isPlaceholder && !o.data?.isDimAnnotation
+    );
+  }
+
+  _getRowByObj(obj) {
+    return this.rows.find(r => r.objects.includes(obj)) || null;
+  }
+
+  _computePeerSlots(row, dragTarget) {
+    const peers = row.objects.filter(o => o !== dragTarget);
+    // 整行起始 x：取行中最左元素的 left
+    const startX = row.objects
+      .filter(o => o !== dragTarget)
+      .reduce((min, o) => Math.min(min, o.left||0), Infinity);
+    const sx = isFinite(startX) ? startX : (dragTarget.left||0);
+
+    let cursor = sx;
+    return peers.map(obj => {
+      const idealX = cursor;
+      cursor += obj.getScaledWidth() + this.opts.gap;
+      return { obj, idealX };
+    });
+  }
+
+  _computeInsertIndex(dragLeft, dragWidth, peers) {
+    const dragCX = dragLeft + dragWidth / 2;
+    for (let i = 0; i < peers.length; i++) {
+      const pCX = peers[i].idealX + peers[i].obj.getScaledWidth() / 2;
+      if (dragCX < pCX) return i;
+    }
+    return peers.length;
+  }
+
+  _computeLayout(insertIdx, dragTarget, peers) {
+    const { gap } = this.opts;
+    const dw = dragTarget.getScaledWidth();
+    const startX = peers.length > 0 ? peers[0].idealX : (dragTarget.left||0);
+
+    const peerTargets = [];
+    let cursor = startX;
+
+    peers.forEach((p, i) => {
+      if (i === insertIdx) cursor += dw + gap;
+      peerTargets.push({ obj: p.obj, x: cursor });
+      cursor += p.obj.getScaledWidth() + gap;
+    });
+
+    // placeholder X
+    let phX;
+    if (insertIdx === 0) {
+      phX = startX;
+    } else if (insertIdx >= peers.length) {
+      const last = peerTargets[peerTargets.length - 1];
+      phX = last ? last.x + peers[peers.length-1].obj.getScaledWidth() + gap : startX;
+    } else {
+      phX = peerTargets[insertIdx].x - dw - gap;
+    }
+
+    return { peerTargets, placeholderX: phX };
+  }
+
+  enable() {
+    if (this.enabled) return;
+    this.enabled = true;
+    this.canvas.on('object:moving', this._onMoving);
+    this.canvas.on('mouse:up', this._onMouseUp);
+    this.initRows();
+  }
+
+  disable() {
+    if (!this.enabled) return;
+    this.enabled = false;
+    this.canvas.off('object:moving', this._onMoving);
+    this.canvas.off('mouse:up', this._onMouseUp);
+    this._cleanup();
+  }
+
+  _handleMoving(e) {
+    const target = e.target;
+    if (!target || target.data?.isGrid || target.data?.isPlaceholder) return;
+
+    if (!this._isDragging || this._dragTarget !== target) {
+      this._startDrag(target);
+    }
+
+    // 锁定 top
+    if (this._dragRow) target.set('top', this._dragRow.y);
+
+    const idx = this._computeInsertIndex(
+      target.left || 0,
+      target.getScaledWidth(),
+      this._peerSlots,
+    );
+
+    if (idx !== this._currentInsertIdx) {
+      this._currentInsertIdx = idx;
+      this._applyLayout(idx, target);
+      log(`插入位置 → [${idx}]`, 'move');
+    }
+  }
+
+  _startDrag(target) {
+    if (this._isDragging) this._cleanup();
+
+    const row = this._getRowByObj(target);
+    if (!row) {
+      log(`元素不在任何行中，跳过`, 'warn');
+      return;
+    }
+
+    this._isDragging   = true;
+    this._dragTarget   = target;
+    this._dragRow      = row;
+    this._peerSlots    = this._computePeerSlots(row, target);
+    this._currentInsertIdx = -1;
+
+    this._createPlaceholder(target);
+    log(`开始拖动，所在行 y=${row.y}，同行 ${this._peerSlots.length} 个`, 'info');
+  }
+
+  _applyLayout(insertIdx, dragTarget) {
+    if (!this._dragRow || !this._placeholder) return;
+
+    const { peerTargets, placeholderX } = this._computeLayout(
+      insertIdx, dragTarget, this._peerSlots
+    );
+
+    this._placeholder.set({ left: placeholderX, top: this._dragRow.y });
+
+    peerTargets.forEach(({ obj, x }) => {
+      if (obj._sortAnim) { obj._sortAnim = null; }
+      fabric.util.animate({
+        startValue: obj.left || 0,
+        endValue: x,
+        duration: this.opts.animDuration,
+        onChange: val => { obj.set('left', val); this.canvas.requestRenderAll(); },
+        easing: fabric.util.ease.easeOutCubic,
+        onComplete: () => obj.setCoords(),
+      });
+    });
+
+    this.canvas.requestRenderAll();
+  }
+
+  _handleMouseUp(e) {
+    if (!this._isDragging || !this._dragTarget || !this._dragRow) return;
+
+    const target = this._dragTarget;
+    const row    = this._dragRow;
+    const idx    = this._currentInsertIdx < 0 ? this._peerSlots.length : this._currentInsertIdx;
+
+    const { placeholderX } = this._computeLayout(idx, target, this._peerSlots);
+
+    log(`释放 → 吸附到 x=${Math.round(placeholderX)}`, 'snap');
+
+    // 吸附动画
+    const dur = this.opts.animDuration;
+    fabric.util.animate({
+      startValue: target.left || 0, endValue: placeholderX, duration: dur,
+      onChange: val => { target.set('left', val); this.canvas.requestRenderAll(); },
+      easing: fabric.util.ease.easeOutCubic,
+      onComplete: () => target.setCoords(),
+    });
+    fabric.util.animate({
+      startValue: target.top || 0, endValue: row.y, duration: dur,
+      onChange: val => { target.set('top', val); this.canvas.requestRenderAll(); },
+      easing: fabric.util.ease.easeOutCubic,
+    });
+
+    // 更新行内顺序
+    const peers = row.objects.filter(o => o !== target);
+    peers.splice(idx, 0, target);
+    row.objects = peers;
+
+    this._removePlaceholder();
+    this._isDragging = false;
+    this._dragTarget = null;
+    this._dragRow    = null;
+    this._peerSlots  = [];
+    this._currentInsertIdx = -1;
+
+    updateStats();
+  }
+
+  _createPlaceholder(target) {
+    this._placeholder = new fabric.Rect({
+      left:   target.left,
+      top:    target.top,
+      width:  target.getScaledWidth(),
+      height: target.getScaledHeight(),
+      fill:   this.opts.placeholderColor,
+      stroke: this.opts.placeholderStroke,
+      strokeWidth: 1.5,
+      strokeDashArray: [6, 4],
+      rx: 6, ry: 6,
+      selectable: false,
+      evented:    false,
+      opacity:    0,
+      data: { isPlaceholder: true },
+    });
+    this.canvas.add(this._placeholder);
+    this.canvas.sendObjectToBack(this._placeholder);
+    // 把网格线送到最底部
+    this.canvas.getObjects()
+      .filter(o => o.data?.isGrid)
+      .forEach(o => this.canvas.sendObjectToBack(o));
+
+    // 淡入
+    fabric.util.animate({
+      startValue: 0, endValue: 1, duration: 120,
+      onChange: v => { this._placeholder && this._placeholder.set('opacity', v); this.canvas.requestRenderAll(); },
+    });
+  }
+
+  _removePlaceholder() {
+    if (this._placeholder) {
+      const ph = this._placeholder;
+      this._placeholder = null;
+      fabric.util.animate({
+        startValue: ph.opacity || 1, endValue: 0, duration: 120,
+        onChange: v => { ph.set('opacity', v); this.canvas.requestRenderAll(); },
+        onComplete: () => this.canvas.remove(ph),
+      });
+    }
+  }
+
+  _cleanup() {
+    this._isDragging = false;
+    this._dragTarget = null;
+    this._dragRow    = null;
+    this._peerSlots  = [];
+    this._currentInsertIdx = -1;
+    this._removePlaceholder();
+  }
+}
+
+// ─────────────────────────────────────────────
+//  实例化插件
+// ─────────────────────────────────────────────
+const dimPlugin  = new DimensionPlugin(canvas);
+const sortPlugin = new SortableSnapPlugin(canvas, { gap: 14, rowTolerance: 24 });
+
+function toggleDimension(on) {
+  on ? dimPlugin.enable() : dimPlugin.disable();
+  document.getElementById('card-dim').classList.toggle('on', on);
+  document.getElementById('tag-dim').classList.toggle('active', on);
+  log(`尺寸标注插件 ${on ? '已开启' : '已关闭'}`, 'info');
+}
+
+function toggleSort(on) {
+  on ? sortPlugin.enable() : sortPlugin.disable();
+  document.getElementById('card-sort').classList.toggle('on', on);
+  document.getElementById('tag-sort').classList.toggle('active', on);
+  log(`换位吸附插件 ${on ? '已开启' : '已关闭'}`, 'info');
+}
+
+// ─────────────────────────────────────────────
+//  日志系统
+// ─────────────────────────────────────────────
+const logList = document.getElementById('logList');
+let logCount = 0;
+
+function log(msg, type = 'info') {
+  logCount++;
+  if (logCount === 1) logList.innerHTML = '';
+  const item = document.createElement('div');
+  item.className = `log-item ${type}`;
+  const time = new Date().toLocaleTimeString('zh-CN', { hour12: false, hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  item.textContent = `${time}  ${msg}`;
+  logList.appendChild(item);
+  // 只保留最新 60 条
+  while (logList.children.length > 60) logList.removeChild(logList.firstChild);
+  logList.scrollTop = logList.scrollHeight;
+}
+
+function clearLog() {
+  logList.innerHTML = '<div class="empty-log">日志已清空</div>';
+  logCount = 0;
+}
+
+// ─────────────────────────────────────────────
+//  添加元素
+// ─────────────────────────────────────────────
+const ROW1_Y = 140;
+const ROW2_Y = 280;
+let nextX1 = 60, nextX2 = 60;
+
+function makeRect(x, y, color, label) {
+  const w = 90 + Math.floor(Math.random() * 40);
+  const h = 56 + Math.floor(Math.random() * 20);
+  const group = new fabric.Group([
+    new fabric.Rect({
+      width: w, height: h,
+      fill: color + '22',
+      stroke: color,
+      strokeWidth: 1.5,
+      rx: 8, ry: 8,
+    }),
+    new fabric.Text(label, {
+      fontSize: 11,
+      fontFamily: 'JetBrains Mono',
+      fill: color,
+      left: 0, top: 0,
+      textAlign: 'center',
+      width: w,
+      originY: 'center',
+      top: h / 2 - 6,
+    }),
+  ], {
+    left: x,
+    top: y,
+    subTargetCheck: false,
+  });
+  return group;
+}
+
+const LABELS = ['Button','Input','Card','Modal','Table','Form','List','Nav','Tag','Badge'];
+let labelIdx = 0;
+
+function addRect() {
+  const obj = makeRect(nextX1, ROW1_Y, selectedColor, LABELS[labelIdx++ % LABELS.length]);
+  canvas.add(obj);
+  nextX1 += obj.getScaledWidth() + 14;
+  if (sortPlugin.enabled) sortPlugin.initRows();
+  updateStats();
+  log(`添加元素到行 1`, 'info');
+}
+
+function addRectRow2() {
+  const obj = makeRect(nextX2, ROW2_Y, selectedColor, LABELS[labelIdx++ % LABELS.length]);
+  canvas.add(obj);
+  nextX2 += obj.getScaledWidth() + 14;
+  if (sortPlugin.enabled) sortPlugin.initRows();
+  updateStats();
+  log(`添加元素到行 2`, 'info');
+}
+
+function addCircle() {
+  const r = 30 + Math.floor(Math.random() * 15);
+  const obj = new fabric.Circle({
+    left: nextX1,
+    top: ROW1_Y + 4,
+    radius: r,
+    fill: selectedColor + '22',
+    stroke: selectedColor,
+    strokeWidth: 1.5,
+  });
+  canvas.add(obj);
+  nextX1 += r * 2 + 14;
+  if (sortPlugin.enabled) sortPlugin.initRows();
+  updateStats();
+  log(`添加圆形到行 1`, 'info');
+}
+
+// ─────────────────────────────────────────────
+//  预设场景
+// ─────────────────────────────────────────────
+function clearNonGrid() {
+  canvas.getObjects()
+    .filter(o => !o.data?.isGrid)
+    .forEach(o => canvas.remove(o));
+  nextX1 = 60; nextX2 = 60; labelIdx = 0;
+}
+
+function loadPreset1() {
+  clearNonGrid();
+  const colors = ['#6c63ff','#00d4aa','#ff6b6b'];
+  const labels = ['组件 A','组件 B','组件 C'];
+  const widths = [100, 120, 90];
+  let x = 60;
+  colors.forEach((c, i) => {
+    const obj = makeRect(x, ROW1_Y, c, labels[i]);
+    canvas.add(obj);
+    x += widths[i] + 14;
+  });
+  nextX1 = x;
+  if (sortPlugin.enabled) sortPlugin.initRows();
+  updateStats();
+  log('加载预设 1：三列排布', 'info');
+}
+
+function loadPreset2() {
+  clearNonGrid();
+  // 行 1
+  const r1Colors = ['#6c63ff','#00d4aa','#ff6b6b'];
+  const r1Labels = ['模块 A','模块 B','模块 C'];
+  let x1 = 60;
+  r1Colors.forEach((c, i) => {
+    const obj = makeRect(x1, ROW1_Y, c, r1Labels[i]);
+    canvas.add(obj);
+    x1 += obj.getScaledWidth() + 14;
+  });
+  nextX1 = x1;
+  // 行 2
+  const r2Colors = ['#ffd93d','#a29bfe'];
+  const r2Labels = ['服务 X','服务 Y'];
+  let x2 = 60;
+  r2Colors.forEach((c, i) => {
+    const obj = makeRect(x2, ROW2_Y, c, r2Labels[i]);
+    canvas.add(obj);
+    x2 += obj.getScaledWidth() + 14;
+  });
+  nextX2 = x2;
+  if (sortPlugin.enabled) sortPlugin.initRows();
+  updateStats();
+  log('加载预设 2：双行布局', 'info');
+}
+
+function clearCanvas() {
+  clearNonGrid();
+  if (sortPlugin.enabled) sortPlugin.initRows();
+  updateStats();
+  log('画布已清空', 'warn');
+}
+
+// ─────────────────────────────────────────────
+//  初始加载预设 1
+// ─────────────────────────────────────────────
+loadPreset1();
+</script>
+</body>
+</html>
