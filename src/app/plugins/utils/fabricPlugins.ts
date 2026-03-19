@@ -33,7 +33,10 @@ export interface SortableSnapPluginOptions {
 }
 
 export interface PluginCanvasObject extends FabricObject {
-  data?: Record<string, unknown>
+  data?: Record<string, unknown> & {
+    layoutWidth?: number
+    layoutHeight?: number
+  }
 }
 
 interface RowState {
@@ -55,6 +58,18 @@ interface LayoutResult {
   peerTargets: PeerTarget[]
   placeholderX: number
 }
+
+type LayoutSlot =
+  | {
+      kind: 'peer'
+      width: number
+      obj: PluginCanvasObject
+    }
+  | {
+      kind: 'placeholder'
+      width: number
+      obj: null
+    }
 
 const DEFAULT_DIMENSION_OPTIONS: Required<DimensionPluginOptions> = {
   lineColor: '#1677ff',
@@ -90,6 +105,22 @@ function toSceneBounds(object: PluginCanvasObject) {
     width: bounds.width,
     height: bounds.height,
   }
+}
+
+function getScaleX(object: PluginCanvasObject) {
+  return object.scaleX ?? 1
+}
+
+function getScaleY(object: PluginCanvasObject) {
+  return object.scaleY ?? 1
+}
+
+function getLayoutWidth(object: PluginCanvasObject) {
+  return (object.data?.layoutWidth ?? object.width ?? 0) * getScaleX(object)
+}
+
+function getLayoutHeight(object: PluginCanvasObject) {
+  return (object.data?.layoutHeight ?? object.height ?? 0) * getScaleY(object)
 }
 
 function cancelAnimationMap(
@@ -143,6 +174,7 @@ export class DimensionPlugin {
       return
     }
 
+    this.clearOverlay()
     const context = this.canvas.getTopContext()
     const zoom = this.canvas.getZoom() || 1
     const viewportTransform = this.canvas.viewportTransform
@@ -249,17 +281,6 @@ export class DimensionPlugin {
     context.stroke()
 
     context.font = `${fontSize}px ui-monospace, SFMono-Regular, Menlo, monospace`
-    const textWidth = context.measureText(label).width
-    const padding = 4 / zoom
-
-    context.fillStyle = 'rgba(8,12,24,0.88)'
-    context.fillRect(
-      midX - textWidth / 2 - padding,
-      midY - fontSize / 2 - padding / 2,
-      textWidth + padding * 2,
-      fontSize + padding,
-    )
-
     context.fillStyle = this.options.textColor
     context.textAlign = 'center'
     context.textBaseline = 'middle'
@@ -315,6 +336,7 @@ export class SortableSnapPlugin {
     this.canvas.on('object:moving', this.handleObjectMoving)
     this.canvas.on('mouse:up', this.handleMouseUp)
     this.initRows()
+    this.normalizeLayout(false)
   }
 
   disable() {
@@ -336,6 +358,16 @@ export class SortableSnapPlugin {
 
   getRows() {
     return this.rows
+  }
+
+  normalizeLayout(animated = false) {
+    if (this.rows.length === 0) {
+      this.initRows()
+      return
+    }
+
+    this.rows.forEach((row) => this.reflowRow(row, animated))
+    this.canvas.requestRenderAll()
   }
 
   initRows() {
@@ -379,7 +411,7 @@ export class SortableSnapPlugin {
 
     const insertIndex = this.computeInsertIndex(
       target.left ?? 0,
-      target.getScaledWidth(),
+      getLayoutWidth(target),
       this.peerSlots,
     )
 
@@ -418,7 +450,7 @@ export class SortableSnapPlugin {
         obj: object,
         idealX: cursor,
       }
-      cursor += object.getScaledWidth() + this.options.gap
+      cursor += getLayoutWidth(object) + this.options.gap
       return slot
     })
   }
@@ -426,7 +458,7 @@ export class SortableSnapPlugin {
   private computeInsertIndex(dragLeft: number, dragWidth: number, peers: PeerSlot[]) {
     const dragCenterX = dragLeft + dragWidth / 2
     for (const [index, peer] of peers.entries()) {
-      const peerCenterX = peer.idealX + peer.obj.getScaledWidth() / 2
+      const peerCenterX = peer.idealX + getLayoutWidth(peer.obj) / 2
       if (dragCenterX < peerCenterX) {
         return index
       }
@@ -439,37 +471,37 @@ export class SortableSnapPlugin {
     dragTarget: PluginCanvasObject,
     peers: PeerSlot[],
   ): LayoutResult {
-    const dragWidth = dragTarget.getScaledWidth()
-    const fallbackStartX = dragTarget.left ?? 0
-    const startX = peers[0]?.idealX ?? fallbackStartX
-    let cursor = startX
-    const peerTargets: PeerTarget[] = []
-
-    peers.forEach((peer, index) => {
-      if (index === insertIndex) {
-        cursor += dragWidth + this.options.gap
-      }
-
-      peerTargets.push({
+    const dragWidth = getLayoutWidth(dragTarget)
+    const slots: LayoutSlot[] = [
+      ...peers.map((peer) => ({
+        kind: 'peer' as const,
+        width: getLayoutWidth(peer.obj),
         obj: peer.obj,
-        x: cursor,
-      })
-
-      cursor += peer.obj.getScaledWidth() + this.options.gap
+      })),
+    ]
+    slots.splice(insertIndex, 0, {
+      kind: 'placeholder' as const,
+      width: dragWidth,
+      obj: null,
     })
 
+    const startX = this.computeSequenceStartX(slots.map((slot) => slot.width))
+    let cursor = startX
+    const peerTargets: PeerTarget[] = []
     let placeholderX = startX
-    if (insertIndex === 0) {
-      placeholderX = startX
-    } else if (insertIndex >= peers.length) {
-      const lastPeerTarget = peerTargets.at(-1)
-      const lastPeer = peers.at(-1)
-      placeholderX = lastPeerTarget && lastPeer
-        ? lastPeerTarget.x + lastPeer.obj.getScaledWidth() + this.options.gap
-        : fallbackStartX
-    } else {
-      placeholderX = peerTargets[insertIndex]!.x - dragWidth - this.options.gap
-    }
+
+    slots.forEach((slot) => {
+      if (slot.kind === 'placeholder') {
+        placeholderX = cursor
+      } else {
+        peerTargets.push({
+          obj: slot.obj,
+          x: cursor,
+        })
+      }
+
+      cursor += slot.width + this.options.gap
+    })
 
     return { peerTargets, placeholderX }
   }
@@ -565,8 +597,8 @@ export class SortableSnapPlugin {
     const placeholder = new Rect({
       left: target.left ?? 0,
       top: target.top ?? 0,
-      width: target.getScaledWidth(),
-      height: target.getScaledHeight(),
+      width: getLayoutWidth(target),
+      height: getLayoutHeight(target),
       rx: 10,
       ry: 10,
       fill: this.options.placeholderColor,
@@ -578,7 +610,11 @@ export class SortableSnapPlugin {
       opacity: 0,
     }) as Rect & { data?: Record<string, unknown> }
 
-    placeholder.data = { isPlaceholder: true }
+    placeholder.data = {
+      isPlaceholder: true,
+      layoutWidth: getLayoutWidth(target),
+      layoutHeight: getLayoutHeight(target),
+    }
     this.placeholder = placeholder
     this.canvas.add(placeholder)
     this.canvas.sendObjectToBack(placeholder)
@@ -643,7 +679,7 @@ export class SortableSnapPlugin {
 
       const nextLeft = cursor
       const nextTop = row.y
-      cursor += object.getScaledWidth() + this.options.gap
+      cursor += getLayoutWidth(object) + this.options.gap
 
       if (animated) {
         const animations = object.animate(
@@ -674,11 +710,21 @@ export class SortableSnapPlugin {
   }
 
   private computeCenteredStartX(objects: PluginCanvasObject[]) {
-    const totalWidth = objects.reduce((sum, object, index) => {
-      const width = object.getScaledWidth()
+    const totalWidth = this.computeSequenceWidth(
+      objects.map((object) => getLayoutWidth(object)),
+    )
+    return (this.canvas.getWidth() - totalWidth) / 2
+  }
+
+  private computeSequenceStartX(widths: number[]) {
+    const totalWidth = this.computeSequenceWidth(widths)
+    return (this.canvas.getWidth() - totalWidth) / 2
+  }
+
+  private computeSequenceWidth(widths: number[]) {
+    return widths.reduce((sum, width, index) => {
       return sum + width + (index > 0 ? this.options.gap : 0)
     }, 0)
-    return (this.canvas.getWidth() - totalWidth) / 2
   }
 }
 
@@ -765,7 +811,7 @@ export function createLabeledRect(params: {
 }) {
   const { left, top, width, height = 60, color, label } = params
 
-  return new Group(
+  const object = new Group(
     [
       new Rect({
         width,
@@ -791,8 +837,19 @@ export function createLabeledRect(params: {
       left,
       top,
       subTargetCheck: false,
+      hasControls: false,
+      hasBorders: false,
+      lockScalingX: true,
+      lockScalingY: true,
+      lockRotation: true,
     },
-  )
+  ) as Group & PluginCanvasObject
+  object.data = {
+    ...(object.data ?? {}),
+    layoutWidth: width,
+    layoutHeight: height,
+  }
+  return object
 }
 
 export function createCircleBadge(params: {
@@ -802,14 +859,25 @@ export function createCircleBadge(params: {
   color: string
 }) {
   const { left, top, radius, color } = params
-  return new Circle({
+  const object = new Circle({
     left,
     top,
     radius,
     fill: `${color}20`,
     stroke: color,
     strokeWidth: 2,
-  })
+    hasControls: false,
+    hasBorders: false,
+    lockScalingX: true,
+    lockScalingY: true,
+    lockRotation: true,
+  }) as Circle & PluginCanvasObject
+  object.data = {
+    ...(object.data ?? {}),
+    layoutWidth: radius * 2,
+    layoutHeight: radius * 2,
+  }
+  return object
 }
 
 export function businessObjectsCount(canvas: Canvas) {

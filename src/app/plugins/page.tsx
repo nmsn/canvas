@@ -40,6 +40,13 @@ type StatsState = {
   selected: string
 }
 
+function getObjectLayoutWidth(object: { data?: Record<string, unknown>; width?: number; scaleX?: number | null; getScaledWidth: () => number }) {
+  const layoutWidth = typeof object.data?.layoutWidth === 'number'
+    ? object.data.layoutWidth
+    : object.width
+  return layoutWidth ? layoutWidth * (object.scaleX ?? 1) : object.getScaledWidth()
+}
+
 const PRESET_ONE = [
   { width: 104, color: '#1d4ed8', label: '组件 A' },
   { width: 128, color: '#0f766e', label: '组件 B' },
@@ -103,6 +110,29 @@ export default function PluginsPage() {
     })
   }
 
+  const syncRowCursorFromCanvas = () => {
+    const canvas = canvasRef.current
+    if (!canvas) {
+      return
+    }
+
+    const businessObjects = canvas
+      .getObjects()
+      .filter((object) => !(object as { data?: Record<string, unknown> }).data?.isGrid)
+
+    if (businessObjects.length === 0) {
+      rowOneCursorRef.current = 60
+      return
+    }
+
+    const rightMost = businessObjects.reduce((max, object) => {
+      const objectRight = (object.left ?? 0) + getObjectLayoutWidth(object)
+      return Math.max(max, objectRight)
+    }, 0)
+
+    rowOneCursorRef.current = rightMost + OBJECT_GAP
+  }
+
   useEffect(() => {
     const canvasElement = canvasElementRef.current
     if (!canvasElement) {
@@ -114,7 +144,7 @@ export default function PluginsPage() {
       height: CANVAS_HEIGHT,
       backgroundColor: '#f8fbff',
       preserveObjectStacking: true,
-      selection: true,
+      selection: false,
     })
 
     canvasRef.current = canvas
@@ -182,9 +212,13 @@ export default function PluginsPage() {
     })
 
     labelIndexRef.current += 1
-    rowOneCursorRef.current += object.getScaledWidth() + OBJECT_GAP
+    rowOneCursorRef.current += getObjectLayoutWidth(object) + OBJECT_GAP
     canvas.add(object)
-    sortablePluginRef.current?.isEnabled() && sortablePluginRef.current.initRows()
+    if (sortablePluginRef.current?.isEnabled()) {
+      sortablePluginRef.current.initRows()
+      sortablePluginRef.current.normalizeLayout(false)
+      syncRowCursorFromCanvas()
+    }
     canvas.setActiveObject(object)
     canvas.requestRenderAll()
     appendLog('添加矩形到单行画布', 'info')
@@ -206,9 +240,13 @@ export default function PluginsPage() {
     })
 
     labelIndexRef.current += 1
-    rowOneCursorRef.current += object.getScaledWidth() + OBJECT_GAP
+    rowOneCursorRef.current += getObjectLayoutWidth(object) + OBJECT_GAP
     canvas.add(object)
-    sortablePluginRef.current?.isEnabled() && sortablePluginRef.current.initRows()
+    if (sortablePluginRef.current?.isEnabled()) {
+      sortablePluginRef.current.initRows()
+      sortablePluginRef.current.normalizeLayout(false)
+      syncRowCursorFromCanvas()
+    }
     canvas.setActiveObject(object)
     canvas.requestRenderAll()
     appendLog('添加圆形到行 1', 'info')
@@ -239,6 +277,7 @@ export default function PluginsPage() {
     }
 
     loadPresetOne(canvas, sortablePlugin, appendLog, rowOneCursorRef)
+    syncRowCursorFromCanvas()
     labelIndexRef.current = PRESET_ONE.length
     updateStats()
   }
@@ -267,6 +306,8 @@ export default function PluginsPage() {
 
     if (enabled) {
       plugin.enable()
+      plugin.normalizeLayout(false)
+      syncRowCursorFromCanvas()
     } else {
       plugin.disable()
     }
@@ -448,7 +489,7 @@ function loadPresetOne(
       label: item.label,
     })
     canvas.add(object)
-    cursor += object.getScaledWidth() + OBJECT_GAP
+    cursor += getObjectLayoutWidth(object) + OBJECT_GAP
   })
 
   rowOneCursorRef.current = cursor
