@@ -1,36 +1,14 @@
 import { type Canvas, Group, Polyline, type FabricObject } from "fabric";
-
-/**
- * 线条绘制参数接口
- */
-export interface LineParams {
-  x: number;
-  y: number;
-}
-
-/**
- * 绘制函数接口
- */
-export interface DrawFunction {
-  name: string;
-  displayName: string;
-  execute: (
-    canvas: Canvas,
-    params: LineParams,
-  ) => FabricObject | FabricObject[];
-}
+import { type DrawParams, globalRegistry, type FuncEntry } from "./registry";
 
 /**
  * 绘制水平线
- * @param canvas - Fabric.js 画布实例
- * @param params - 绘制参数
- * @returns 绘制的线条对象
  */
 export const drawHorizontalLine = (
   canvas: Canvas,
-  params: LineParams,
+  params: DrawParams,
   isRender = true,
-) => {
+): FabricObject => {
   const width = 100;
   const line = new Polyline(
     [
@@ -48,21 +26,17 @@ export const drawHorizontalLine = (
     canvas.add(line);
     canvas.requestRenderAll();
   }
-
   return line;
 };
 
 /**
  * 绘制垂直线
- * @param canvas - Fabric.js 画布实例
- * @param params - 绘制参数
- * @returns 绘制的线条对象
  */
 export const drawVerticalLine = (
   canvas: Canvas,
-  params: LineParams,
+  params: DrawParams,
   isRender = true,
-) => {
+): FabricObject => {
   const height = 100;
   const line = new Polyline(
     [
@@ -85,15 +59,12 @@ export const drawVerticalLine = (
 
 /**
  * 绘制对角线
- * @param canvas - Fabric.js 画布实例
- * @param params - 绘制参数
- * @returns 绘制的线条对象
  */
 export const drawDiagonalLine = (
   canvas: Canvas,
-  params: LineParams,
+  params: DrawParams,
   isRender = true,
-) => {
+): FabricObject => {
   const distance = 50;
   const line = new Polyline(
     [
@@ -116,15 +87,12 @@ export const drawDiagonalLine = (
 
 /**
  * 绘制虚线
- * @param canvas - Fabric.js 画布实例
- * @param params - 绘制参数
- * @returns 绘制的线条对象
  */
 export const drawDashedLine = (
   canvas: Canvas,
-  params: LineParams,
+  params: DrawParams,
   isRender = true,
-) => {
+): FabricObject => {
   const width = 100;
   const line = new Polyline(
     [
@@ -146,52 +114,54 @@ export const drawDashedLine = (
   return line;
 };
 
+/**
+ * 绘制全部（示例组合）
+ */
 export const drawAll = (
   canvas: Canvas,
-  params: LineParams,
+  params: DrawParams,
   isRender = true,
-) => {
-  const horizontalLine = drawHorizontalLine(canvas, params, false);
-  const verticalLine = drawVerticalLine(canvas, params, false);
+): FabricObject => {
+  const { x, y } = params;
+  const objects: FabricObject[] = [];
 
-  // 2. 组合成一个 Group
-  const group = new Group([horizontalLine, verticalLine], {
-    left: params.x,
-    top: params.y,
+  const horizontalLine = drawHorizontalLine(canvas, { x, y }, false);
+  const verticalLine = drawVerticalLine(
+    canvas,
+    { x: x + 20, y: y - 20 },
+    false,
+  );
+  objects.push(horizontalLine, verticalLine);
+
+  const group = new Group(objects, {
+    left: x,
+    top: y,
     selectable: true,
   });
+
   if (isRender) {
     canvas.add(group);
     canvas.requestRenderAll();
   }
-
   return group;
 };
+
+// 自动注册所有绘制函数
+const moduleExports = {
+  drawHorizontalLine,
+  drawVerticalLine,
+  drawDiagonalLine,
+  drawDashedLine,
+  drawAll,
+};
+
+globalRegistry.scanModule(
+  moduleExports as unknown as Record<string, unknown>,
+  (name) => name.startsWith("draw"),
+);
 
 /**
  * 获取所有可用的绘制函数
  * @returns 绘制函数列表
  */
-export const getDrawFunctions = (): DrawFunction[] =>
-  [
-    {
-      displayName: "绘制横线",
-      execute: drawHorizontalLine,
-    },
-    {
-      displayName: "绘制竖线",
-      execute: drawVerticalLine,
-    },
-    {
-      displayName: "绘制对角线",
-      execute: drawDiagonalLine,
-    },
-    {
-      displayName: "绘制虚线",
-      execute: drawDashedLine,
-    },
-    {
-      displayName: "绘制全部",
-      execute: drawAll,
-    },
-  ].map((item) => ({ ...item, name: item.execute.name }));
+export const getDrawFunctions = (): FuncEntry[] => globalRegistry.getAll();
