@@ -111,12 +111,21 @@ const FabricCalcPage: FC<PageProps> = () => {
 
       const fabricObject = funcEntry.execute(fabricCanvasRef.current, params);
 
+      // 合并 funcEntry.paramKeys 中定义的默认值到 params
+      const fullParams: DrawParams = { ...params };
+      funcEntry.paramKeys.forEach((key) => {
+        if (!(key in fullParams)) {
+          // 使用默认值（目前为 undefined，后续函数可读取默认值）
+          fullParams[key] = undefined;
+        }
+      });
+
       // 创建片段记录
       const snippet: CanvasSnippet = {
         id: `${Date.now()}-${funcEntry.name}`,
         funcName: funcEntry.name,
         displayName: funcEntry.displayName,
-        params,
+        params: fullParams,
         fabricObject,
       };
 
@@ -499,7 +508,7 @@ const FabricCalcPage: FC<PageProps> = () => {
                                 .filter(([key]) => !["isRender"].includes(key))
                                 .map(([key, value]) => (
                                   <span key={key} className="mr-2">
-                                    {key}: {String(value)}
+                                    {key}: {value === undefined ? "(未设置)" : String(value)}
                                   </span>
                                 ))}
                             </div>
@@ -551,7 +560,7 @@ const FabricCalcPage: FC<PageProps> = () => {
                                     {isNumber ? (
                                       <input
                                         type="number"
-                                        value={value as number}
+                                        value={value ?? 0}
                                         onChange={(e) => {
                                           const newParams = {
                                             ...snippet.params,
@@ -568,7 +577,7 @@ const FabricCalcPage: FC<PageProps> = () => {
                                     ) : (
                                       <input
                                         type="text"
-                                        value={String(value)}
+                                        value={String(value ?? "")}
                                         onChange={(e) => {
                                           const newParams = {
                                             ...snippet.params,
