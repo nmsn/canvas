@@ -22,23 +22,26 @@ export type DrawFunc = (
 const EXCLUDED_PARAMS = ["canvas", "isRender"];
 
 /**
- * 解析函数参数（支持多解构块）
- * @param fn - 函数
- * @returns 所有解构块的参数名数组（按块顺序）
+ * 解析函数的第三个参数（params）的键名
+ * 新签名: drawFn(canvas, { x, y }, { width, height, ... }, isRender)
+ * 第三个参数是解构块，包含所有可编辑参数
+ *
+ * @param fn - 绘制函数
+ * @returns 参数键名数组
  */
-function parseParamBlocks(fn: Function): string[][] {
+export function extractParamKeys(fn: Function): string[] {
   const src = fn.toString();
 
-  // 匹配所有解构块 { ... }
-  const destructuredMatches = src.matchAll(/\)\s*\{([^}]*)\}/g);
+  // 匹配第三个解构块 { ... }
+  const matches = src.matchAll(/\)\s*\{([^}]*)\}/g);
   const blocks: string[][] = [];
 
-  for (const match of destructuredMatches) {
+  for (const match of matches) {
     const content = match[1]!;
     const params = content
       .split(",")
       .map((p: string) => {
-        // 处理 TypeScript 类型注解: { x, y }: Position 或 { width = 100 }: { width?: number }
+        // 处理 TypeScript 类型注解: { width = 100 }: { width?: number }
         const beforeColon = p.split(":")[0]!.trim();
         // 处理带默认值的: width = 100
         return beforeColon.split("=")[0]!.trim();
@@ -47,32 +50,16 @@ function parseParamBlocks(fn: Function): string[][] {
     blocks.push(params);
   }
 
-  return blocks;
-}
-
-/**
- * 从绘制函数签名中提取可编辑参数 key 列表（第三个解构块）
- * 新签名: drawFn(canvas, { x, y }, { width, height }, isRender)
- * - 第一个解构块: position (x, y) - 不暴露
- * - 第二个解构块: params (width, height 等) - 暴露给 UI
- *
- * @param fn - 绘制函数
- * @returns 参数 key 数组
- */
-export function extractParamKeys(fn: Function): string[] {
-  const blocks = parseParamBlocks(fn);
-
-  // 新签名中，第二个解构块（index 1）是 params
-  if (blocks.length >= 2 && blocks[1]) {
-    return blocks[1];
+  // 第三个解构块（index 2）是 params
+  if (blocks.length >= 3 && blocks[2]) {
+    return blocks[2];
   }
 
   // 降级：使用旧的 params.xxx 匹配方式
-  const fnStr = fn.toString();
-  const matches = fnStr.matchAll(/params\.(?:(\w+)|\[(['"])(\w+)\2\])/g);
+  const legacyMatches = src.matchAll(/params\.(?:(\w+)|\[(['"])(\w+)\2\])/g);
   const keys = new Set<string>();
 
-  for (const match of matches) {
+  for (const match of legacyMatches) {
     const key = match[1] || match[3];
     if (key) {
       keys.add(key);
@@ -84,29 +71,36 @@ export function extractParamKeys(fn: Function): string[] {
 
 /**
  * 从绘制函数签名中提取参数的默认值
- * 支持从解构块中提取默认值 { width = 100 }
+ * 只解析第三个参数（params）的默认值 { width = 100, height = 200 }
  *
  * @param fn - 绘制函数
  * @returns 包含默认值 key-value 的对象
  */
 export function extractParamDefaults(fn: Function): Record<string, number | string | boolean> {
-  const fnStr = fn.toString();
+  const src = fn.toString();
   const defaults: Record<string, number | string | boolean> = {};
 
-  // 1. 从解构块中提取默认值（第二个块是 params）
-  const blocks = parseParamBlocks(fn);
-  if (blocks.length >= 2 && blocks[1]) {
-    const paramsBlock = blocks[1];
+  // 1. 从第三个解构块（params）中提取默认值
+  const matches = src.matchAll(/\)\s*\{([^}]*)\}/g);
+  const blocks: string[][] = [];
+
+  for (const match of matches) {
+    const content = match[1]!;
+    const params = content.split(",").filter(Boolean);
+    blocks.push(params);
+  }
+
+  if (blocks.length >= 3 && blocks[2]) {
     // 匹配 key = value 格式
     const defaultPattern = /\b(\w+)\s*=\s*(?:(\d+(?:\.\d+)?)|'(.*?)'|"(.*?)"|(\w+))/g;
-    let match;
+    let defMatch;
 
-    while ((match = defaultPattern.exec(paramsBlock.join(","))) !== null) {
-      const key = match[1]!;
-      const numStr = match[2];
-      const singleStr = match[3];
-      const doubleStr = match[4];
-      const boolStr = match[5];
+    while ((defMatch = defaultPattern.exec(blocks[2].join(","))) !== null) {
+      const key = defMatch[1]!;
+      const numStr = defMatch[2];
+      const singleStr = defMatch[3];
+      const doubleStr = defMatch[4];
+      const boolStr = defMatch[5];
 
       if (!EXCLUDED_PARAMS.includes(key)) {
         if (numStr !== undefined) {
@@ -126,7 +120,7 @@ export function extractParamDefaults(fn: Function): Record<string, number | stri
   const nullishPattern = /params\.(\w+).*?\?\?\s*(?:(\d+(?:\.\d+)?)|'(.*?)'|"(.*?)")/g;
   let nullishMatch;
 
-  while ((nullishMatch = nullishPattern.exec(fnStr)) !== null) {
+  while ((nullishMatch = nullishPattern.exec(src)) !== null) {
     const paramAccess = nullishMatch[0];
     const paramNameMatch = paramAccess.match(/params\.(\w+)/);
     if (!paramNameMatch) continue;
