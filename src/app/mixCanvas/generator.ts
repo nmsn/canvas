@@ -18,11 +18,13 @@ export interface SnippetConfig {
  * @returns 代码字符串
  */
 export function generateSnippetCode(snippet: CanvasSnippet): string {
+  const positionStr = `x: ${snippet.position.x}, y: ${snippet.position.y}`;
   const paramsStr = Object.entries(snippet.params)
     .filter(([key]) => key !== "isRender")
     .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
     .join(", ");
-  return `${snippet.funcName}(canvas, { ${paramsStr} });`;
+  const fullParamsStr = paramsStr ? `, { ${paramsStr} }` : "";
+  return `${snippet.funcName}(canvas, { ${positionStr} }${fullParamsStr});`;
 }
 
 /**
@@ -51,14 +53,14 @@ export function generateCompositionCode(
 
   // 计算基准点（第一个片段的位置）
   const firstSnippet = snippets[0]!;
-  const baseX = firstSnippet.params.x;
-  const baseY = firstSnippet.params.y;
+  const baseX = firstSnippet.position.x;
+  const baseY = firstSnippet.position.y;
 
   // 生成片段配置
   const configs: SnippetConfig[] = snippets.map((s) => ({
     funcName: s.funcName,
-    offsetX: s.params.x - baseX,
-    offsetY: s.params.y - baseY,
+    offsetX: s.position.x - baseX,
+    offsetY: s.position.y - baseY,
   }));
 
   // 构建代码
@@ -68,9 +70,10 @@ export function generateCompositionCode(
     ` */`,
     `export const ${name} = (`,
     `  canvas: Canvas,`,
-    `  params: DrawParams,`,
+    `  position: { x: number; y: number },`,
+    `  params: Record<string, unknown> = {},`,
     `) => {`,
-    `  const { x, y } = params;`,
+    `  const { x, y } = position;`,
     `  const objects: FabricObject[] = [];`,
     ``,
   ];
@@ -78,7 +81,7 @@ export function generateCompositionCode(
   configs.forEach((config, i) => {
     // 提取除了 x, y 之外的额外参数
     const otherParams = Object.entries(snippets[i]!.params)
-      .filter(([key]) => !["x", "y", "isRender"].includes(key))
+      .filter(([key]) => !["isRender"].includes(key))
       .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
       .join(", ");
 
@@ -86,10 +89,7 @@ export function generateCompositionCode(
     lines.push(`  const obj${i} = ${config.funcName}(canvas, {`);
     lines.push(`    x: x + ${config.offsetX},`);
     lines.push(`    y: y + ${config.offsetY},`);
-    if (otherParams) {
-      lines.push(`    ${otherParams},`);
-    }
-    lines.push(`  });`);
+    lines.push(`  }${otherParams ? `, { ${otherParams} }` : ""});`);
     lines.push(`  objects.push(obj${i});`);
     lines.push(``);
   });

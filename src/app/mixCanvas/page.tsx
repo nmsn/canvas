@@ -10,7 +10,7 @@ import { getDrawFunctions } from "./func";
 import {
   type FuncEntry,
   type CanvasSnippet,
-  type DrawParams,
+  type Position,
 } from "./registry";
 import { generateAllCode, generateCompositionCode } from "./generator";
 
@@ -50,7 +50,7 @@ const FabricCalcPage: FC<PageProps> = () => {
 
   // 片段参数编辑状态
   const [editingSnippetId, setEditingSnippetId] = useState<string | null>(null);
-  const [editingSnippetOriginal, setEditingSnippetOriginal] = useState<DrawParams | null>(null);
+  const [editingSnippetOriginal, setEditingSnippetOriginal] = useState<{ position: Position; params: Record<string, unknown> } | null>(null);
   const [editingParamsJson, setEditingParamsJson] = useState("");
 
   // 获取所有绘制函数
@@ -107,24 +107,25 @@ const FabricCalcPage: FC<PageProps> = () => {
    * 执行绘制函数并记录
    */
   const executeDrawFunction = useCallback(
-    (funcEntry: FuncEntry, params: DrawParams) => {
+    (funcEntry: FuncEntry, position: Position, params: Record<string, unknown>) => {
       if (!fabricCanvasRef.current) return;
 
-      const fabricObject = funcEntry.execute(fabricCanvasRef.current, params);
-
       // 合并 funcEntry.paramDefaults 中定义的默认值到 params
-      const fullParams: DrawParams = { ...params };
+      const fullParams = { ...params };
       Object.entries(funcEntry.paramDefaults).forEach(([key, value]) => {
         if (!(key in fullParams)) {
           fullParams[key] = value;
         }
       });
 
+      const fabricObject = funcEntry.execute(fabricCanvasRef.current, position, fullParams);
+
       // 创建片段记录
       const snippet: CanvasSnippet = {
         id: `${Date.now()}-${funcEntry.name}`,
         funcName: funcEntry.name,
         displayName: funcEntry.displayName,
+        position,
         params: fullParams,
         fabricObject,
       };
@@ -163,8 +164,8 @@ const FabricCalcPage: FC<PageProps> = () => {
       const dropX = Math.round(e.clientX - canvasRect.left);
       const dropY = Math.round(e.clientY - canvasRect.top);
 
-      const params: DrawParams = { x: dropX, y: dropY };
-      executeDrawFunction(draggedFunction, params);
+      const position: Position = { x: dropX, y: dropY };
+      executeDrawFunction(draggedFunction, position, {});
       handleDragEnd();
     },
     [draggedFunction, executeDrawFunction, handleDragEnd],
@@ -202,15 +203,14 @@ const FabricCalcPage: FC<PageProps> = () => {
     setSnippets((prev) =>
       prev.map((snippet) => {
         if (snippet.fabricObject === fabricObject) {
-          // 保留所有现有参数，只更新 x/y
-          const updatedParams: DrawParams = {
-            ...snippet.params,
-            x: Math.round(fabricObject.left ?? snippet.params.x),
-            y: Math.round(fabricObject.top ?? snippet.params.y),
+          // 只更新 position 的 x/y
+          const updatedPosition: Position = {
+            x: Math.round(fabricObject.left ?? snippet.position.x),
+            y: Math.round(fabricObject.top ?? snippet.position.y),
           };
           return {
             ...snippet,
-            params: updatedParams,
+            position: updatedPosition,
           };
         }
         return snippet;
@@ -222,7 +222,7 @@ const FabricCalcPage: FC<PageProps> = () => {
    * 应用编辑后的参数到片段
    */
   const applyEditedParams = useCallback(
-    (snippetId: string, newParams: DrawParams) => {
+    (snippetId: string, newParams: Record<string, unknown>) => {
       if (!fabricCanvasRef.current) return;
 
       const snippet = snippets.find((s) => s.id === snippetId);
@@ -241,7 +241,7 @@ const FabricCalcPage: FC<PageProps> = () => {
       const funcEntry = drawFunctions.find((f) => f.name === snippet.funcName);
       if (!funcEntry) return;
 
-      const newFabricObject = funcEntry.execute(fabricCanvasRef.current, newParams);
+      const newFabricObject = funcEntry.execute(fabricCanvasRef.current, snippet.position, newParams);
 
       fabricCanvasRef.current.requestRenderAll();
 
@@ -264,11 +264,13 @@ const FabricCalcPage: FC<PageProps> = () => {
    * 取消编辑
    */
   const cancelEditParams = useCallback(() => {
-    // 取消时恢复原始 params
+    // 取消时恢复原始 position 和 params
     if (editingSnippetId && editingSnippetOriginal) {
       setSnippets((prev) =>
         prev.map((s) =>
-          s.id === editingSnippetId ? { ...s, params: editingSnippetOriginal } : s
+          s.id === editingSnippetId
+            ? { ...s, position: editingSnippetOriginal.position, params: editingSnippetOriginal.params }
+            : s
         )
       );
     }
@@ -516,7 +518,7 @@ const FabricCalcPage: FC<PageProps> = () => {
                             ? toggleSnippetSelection(snippet.id)
                             : editingSnippetId === snippet.id
                               ? (setEditingSnippetId(null), setEditingSnippetOriginal(null), setEditingParamsJson(""))
-                              : (setEditingSnippetId(snippet.id), setEditingSnippetOriginal({ ...snippet.params }), setEditingParamsJson(JSON.stringify(snippet.params, null, 2)))
+                              : (setEditingSnippetId(snippet.id), setEditingSnippetOriginal({ position: snippet.position, params: snippet.params }), setEditingParamsJson(JSON.stringify(snippet.params, null, 2)))
                         }
                         style={{ cursor: isComposing ? "pointer" : "pointer" }}
                       >
@@ -559,7 +561,7 @@ const FabricCalcPage: FC<PageProps> = () => {
                                   setEditingParamsJson("");
                                 } else {
                                   setEditingSnippetId(snippet.id);
-                                  setEditingSnippetOriginal({ ...snippet.params });
+                                  setEditingSnippetOriginal({ position: snippet.position, params: snippet.params });
                                   setEditingParamsJson(JSON.stringify(snippet.params, null, 2));
                                 }
                               }}
@@ -594,7 +596,7 @@ const FabricCalcPage: FC<PageProps> = () => {
                             <button
                               onClick={() => {
                                 try {
-                                  const newParams = JSON.parse(editingParamsJson) as DrawParams;
+                                  const newParams = JSON.parse(editingParamsJson) as Record<string, unknown>;
                                   applyEditedParams(snippet.id, newParams);
                                 } catch {
                                   alert("JSON 格式错误，请检查输入");

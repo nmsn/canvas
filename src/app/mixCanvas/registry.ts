@@ -1,23 +1,25 @@
 import { type Canvas, type FabricObject } from "fabric";
 
 /**
- * 绘制参数接口
+ * 位置参数
  */
-export interface DrawParams {
-  x: number;
-  y: number;
-  [key: string]: unknown;
-}
+export type Position = { x: number; y: number };
 
 /**
  * 绘制函数类型 - 统一签名
+ * position: 位置 { x, y }
+ * params: 其他参数（如 width, height 等）
  */
-export type DrawFunc = (canvas: Canvas, params: DrawParams) => FabricObject;
+export type DrawFunc = (
+  canvas: Canvas,
+  position: Position,
+  params: Record<string, unknown>,
+) => FabricObject;
 
 /**
  * 排除的参数名（内部使用，不暴露给 UI）
  */
-const EXCLUDED_PARAMS = ["canvas", "isRender"];
+const EXCLUDED_PARAMS = ["canvas", "isRender", "position"];
 
 /**
  * 从绘制函数签名中提取可编辑参数 key 列表
@@ -136,8 +138,10 @@ export interface CanvasSnippet {
   funcName: string;
   /** 显示名称 */
   displayName: string;
-  /** 绘制参数 */
-  params: DrawParams;
+  /** 位置参数 */
+  position: Position;
+  /** 其他参数（如 width, height 等） */
+  params: Record<string, unknown>;
   /** Fabric.js 对象 */
   fabricObject: FabricObject | FabricObject[];
 }
