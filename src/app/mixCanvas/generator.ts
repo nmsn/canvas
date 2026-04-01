@@ -77,7 +77,7 @@ export function generateCompositionCode(
 
   configs.forEach((config, i) => {
     // 提取除了 x, y 之外的额外参数
-    const otherParams = Object.entries(snippets[i].params)
+    const otherParams = Object.entries(snippets[i]!.params)
       .filter(([key]) => !["x", "y", "isRender"].includes(key))
       .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
       .join(", ");
