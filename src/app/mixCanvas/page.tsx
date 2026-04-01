@@ -112,12 +112,11 @@ const FabricCalcPage: FC<PageProps> = () => {
 
       const fabricObject = funcEntry.execute(fabricCanvasRef.current, params);
 
-      // 合并 funcEntry.paramKeys 中定义的默认值到 params
+      // 合并 funcEntry.paramDefaults 中定义的默认值到 params
       const fullParams: DrawParams = { ...params };
-      funcEntry.paramKeys.forEach((key) => {
+      Object.entries(funcEntry.paramDefaults).forEach(([key, value]) => {
         if (!(key in fullParams)) {
-          // 使用默认值（目前为 undefined，后续函数可读取默认值）
-          fullParams[key] = undefined;
+          fullParams[key] = value;
         }
       });
 

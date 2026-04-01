@@ -23,7 +23,6 @@ const EXCLUDED_PARAMS = ["canvas", "isRender"];
  * 从绘制函数签名中提取可编辑参数 key 列表
  * 通过分析函数体内访问的 params 对象属性来判断
  *
- * 简化实现：扫描函数源码，匹配 params.xxx 模式
  * @param fn - 绘制函数
  * @returns 参数 key 数组
  */
@@ -44,6 +43,44 @@ export function extractParamKeys(fn: Function): string[] {
 }
 
 /**
+ * 从绘制函数签名中提取参数的默认值
+ * 匹配类似 `key = value` 的模式，支持 number、string、boolean
+ *
+ * @param fn - 绘制函数
+ * @returns 包含默认值 key-value 的对象
+ */
+export function extractParamDefaults(fn: Function): Record<string, number | string | boolean> {
+  const fnStr = fn.toString();
+  const defaults: Record<string, number | string | boolean> = {};
+
+  // 匹配 `key = value` 或 `key= value` 等格式
+  // 支持数字、字符串、布尔值
+  const defaultPattern = /(\w+)\s*=\s*(?:(\d+(?:\.\d+)?)|'(.*?)'|"(.*?)"|(\w+))/g;
+  let match;
+
+  while ((match = defaultPattern.exec(fnStr)) !== null) {
+    const key = match[1]!;
+    const numStr = match[2];
+    const singleStr = match[3];
+    const doubleStr = match[4];
+    const boolStr = match[5];
+    if (!EXCLUDED_PARAMS.includes(key)) {
+      if (numStr !== undefined) {
+        defaults[key] = parseFloat(numStr);
+      } else if (singleStr !== undefined) {
+        defaults[key] = singleStr;
+      } else if (doubleStr !== undefined) {
+        defaults[key] = doubleStr;
+      } else if (boolStr !== undefined) {
+        defaults[key] = boolStr === "true";
+      }
+    }
+  }
+
+  return defaults;
+}
+
+/**
  * 函数注册项
  */
 export interface FuncEntry {
@@ -55,6 +92,8 @@ export interface FuncEntry {
   execute: DrawFunc;
   /** 可编辑参数 key 列表（如 ['x', 'y', 'width']） */
   paramKeys: string[];
+  /** 参数默认值 */
+  paramDefaults: Record<string, number | string | boolean>;
 }
 
 /**
@@ -123,12 +162,14 @@ export class FuncRegistry {
 
         const displayName = this.generateDisplayName(name);
         const paramKeys = extractParamKeys(fn as Function);
+        const paramDefaults = extractParamDefaults(fn as Function);
 
         this.register({
           name,
           displayName,
           execute: fn as DrawFunc,
           paramKeys,
+          paramDefaults,
         });
       }
     }
