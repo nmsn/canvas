@@ -53,38 +53,57 @@ export function extractParamDefaults(fn: Function): Record<string, number | stri
   const fnStr = fn.toString();
   const defaults: Record<string, number | string | boolean> = {};
 
-  // 只在函数参数列表内搜索默认值
-  // 找到第一个 ( 和对应的 )
+  // 1. 从函数参数列表中提取默认值
   const paramStart = fnStr.indexOf('(');
   const paramEnd = fnStr.indexOf(')');
-  if (paramStart === -1 || paramEnd === -1 || paramEnd <= paramStart) {
-    return defaults;
+  if (paramStart !== -1 && paramEnd !== -1 && paramEnd > paramStart) {
+    const paramSection = fnStr.substring(paramStart, paramEnd + 1);
+
+    // 匹配参数默认值: key = value 格式
+    const defaultPattern = /\b(\w+)\s*=\s*(?:(\d+(?:\.\d+)?)|'(.*?)'|"(.*?)"|(\w+))/g;
+    let match;
+
+    while ((match = defaultPattern.exec(paramSection)) !== null) {
+      const key = match[1]!;
+      const numStr = match[2];
+      const singleStr = match[3];
+      const doubleStr = match[4];
+      const boolStr = match[5];
+
+      if (!EXCLUDED_PARAMS.includes(key)) {
+        if (numStr !== undefined) {
+          defaults[key] = parseFloat(numStr);
+        } else if (singleStr !== undefined) {
+          defaults[key] = singleStr;
+        } else if (doubleStr !== undefined) {
+          defaults[key] = doubleStr;
+        } else if (boolStr !== undefined) {
+          defaults[key] = boolStr === "true";
+        }
+      }
+    }
   }
 
-  // 只搜索参数列表部分
-  const paramSection = fnStr.substring(paramStart, paramEnd + 1);
+  // 2. 从函数体中搜索 params.xxx ?? default 模式
+  // 匹配 (params.width as number) ?? 100 或 params.width ?? 100
+  // 注意: .*? 允许 ?? 和参数名之间有任何内容 (如类型注解)
+  const nullishPattern = /params\.(\w+).*?\?\?\s*(?:(\d+(?:\.\d+)?)|'(.*?)'|"(.*?)")/g;
+  let nullishMatch;
 
-  // 匹配参数默认值: `key = value` 格式
-  // 支持: 数字 (100)、字符串 ('value' / "value")、布尔 (true/false)
-  const defaultPattern = /(\w+)\s*=\s*(?:(\d+(?:\.\d+)?)|'(.*?)'|"(.*?)"|(\w+))/g;
-  let match;
+  while ((nullishMatch = nullishPattern.exec(fnStr)) !== null) {
+    // 提取参数名
+    const paramAccess = nullishMatch[0];
+    const paramNameMatch = paramAccess.match(/params\.(\w+)/);
+    if (!paramNameMatch) continue;
 
-  while ((match = defaultPattern.exec(paramSection)) !== null) {
-    const key = match[1]!;
-    const numStr = match[2];
-    const singleStr = match[3];
-    const doubleStr = match[4];
-    const boolStr = match[5];
-    if (!EXCLUDED_PARAMS.includes(key)) {
-      if (numStr !== undefined) {
-        defaults[key] = parseFloat(numStr);
-      } else if (singleStr !== undefined) {
-        defaults[key] = singleStr;
-      } else if (doubleStr !== undefined) {
-        defaults[key] = doubleStr;
-      } else if (boolStr !== undefined) {
-        defaults[key] = boolStr === "true";
-      }
+    const paramName = paramNameMatch[1]!;
+    if (EXCLUDED_PARAMS.includes(paramName)) continue;
+    if (paramName in defaults) continue; // 参数列表中已有，跳过
+
+    const value = nullishMatch[1] ?? nullishMatch[2] ?? nullishMatch[3];
+    if (value !== undefined) {
+      const numValue = parseFloat(value as string);
+      defaults[paramName] = isNaN(numValue) ? (value as string) : numValue;
     }
   }
 
