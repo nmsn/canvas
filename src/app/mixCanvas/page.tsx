@@ -45,9 +45,12 @@ const FabricCalcPage: FC<PageProps> = () => {
   // 组合模式状态
   const [isComposing, setIsComposing] = useState(false);
   const [selectedForCompose, setSelectedForCompose] = useState<string[]>([]);
-  const [compositionName, setCompositionName] = useState("");
-  const [compositionDisplayName, setCompositionDisplayName] = useState("");
+  const [compositionName, setCompositionName] = useState("draw");
   const [compositionCode, setCompositionCode] = useState("");
+
+  // 片段参数编辑状态
+  const [editingSnippetId, setEditingSnippetId] = useState<string | null>(null);
+  const [editingSnippetOriginal, setEditingSnippetOriginal] = useState<DrawParams | null>(null);
 
   // 获取所有绘制函数
   const drawFunctions = getDrawFunctions();
@@ -206,6 +209,34 @@ const FabricCalcPage: FC<PageProps> = () => {
   }, []);
 
   /**
+   * 应用编辑后的参数到片段
+   */
+  const applyEditedParams = useCallback(
+    (snippetId: string) => {
+      // state 已在 onChange 时更新，此处只需关闭编辑模式
+      setEditingSnippetId(null);
+      setEditingSnippetOriginal(null);
+    },
+    [],
+  );
+
+  /**
+   * 取消编辑
+   */
+  const cancelEditParams = useCallback(() => {
+    // 取消时恢复原始 params
+    if (editingSnippetId && editingSnippetOriginal) {
+      setSnippets((prev) =>
+        prev.map((s) =>
+          s.id === editingSnippetId ? { ...s, params: editingSnippetOriginal } : s
+        )
+      );
+    }
+    setEditingSnippetId(null);
+    setEditingSnippetOriginal(null);
+  }, [editingSnippetId, editingSnippetOriginal]);
+
+  /**
    * 清空画布
    */
   const clearCanvas = useCallback(() => {
@@ -215,6 +246,9 @@ const FabricCalcPage: FC<PageProps> = () => {
       setSelectedForCompose([]);
       setIsComposing(false);
       setCompositionCode("");
+      setCompositionName("draw");
+      setEditingSnippetId(null);
+      setEditingSnippetOriginal(null);
     }
   }, []);
 
@@ -225,6 +259,9 @@ const FabricCalcPage: FC<PageProps> = () => {
     setIsComposing((prev) => !prev);
     setSelectedForCompose([]);
     setCompositionCode("");
+    setCompositionName("draw");
+    setEditingSnippetId(null);
+    setEditingSnippetOriginal(null);
   }, []);
 
   /**
@@ -249,16 +286,15 @@ const FabricCalcPage: FC<PageProps> = () => {
     }
 
     const name = compositionName.trim() || `drawCombo${Date.now()}`;
-    const displayName = compositionDisplayName.trim() || "自定义组合";
 
     // 按照选中顺序获取片段
     const selectedSnippets = selectedForCompose
       .map((id) => snippets.find((s) => s.id === id))
       .filter((s): s is CanvasSnippet => s !== undefined);
 
-    const code = generateCompositionCode(name, displayName, selectedSnippets);
+    const code = generateCompositionCode(name, name, selectedSnippets);
     setCompositionCode(code);
-  }, [selectedForCompose, snippets, compositionName, compositionDisplayName]);
+  }, [selectedForCompose, snippets, compositionName]);
 
   /**
    * 初始化 Fabric.js 画布
@@ -391,22 +427,13 @@ const FabricCalcPage: FC<PageProps> = () => {
                 <div className="mb-2 text-sm text-purple-800">
                   组合模式：选择要组合的组件
                 </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="函数名 (如 drawMyCombo)"
-                    value={compositionName}
-                    onChange={(e) => setCompositionName(e.target.value)}
-                    className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  />
-                  <input
-                    type="text"
-                    placeholder="显示名称"
-                    value={compositionDisplayName}
-                    onChange={(e) => setCompositionDisplayName(e.target.value)}
-                    className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-                  />
-                </div>
+                <input
+                  type="text"
+                  placeholder="函数名 (如 drawMyCombo)"
+                  value={compositionName}
+                  onChange={(e) => setCompositionName(e.target.value)}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                />
                 <button
                   onClick={generateComposition}
                   disabled={selectedForCompose.length < 2}
@@ -428,51 +455,156 @@ const FabricCalcPage: FC<PageProps> = () => {
                 <h3 className="mb-2 text-sm font-medium text-gray-700">
                   画布组件
                 </h3>
-                <div className="max-h-48 space-y-2 overflow-y-auto">
+                <div className="max-h-64 space-y-2 overflow-y-auto">
                   {snippets.map((snippet, index) => (
                     <div
                       key={snippet.id}
-                      className={`flex items-center justify-between rounded-md border p-2 ${
+                      className={`rounded-md border ${
                         isComposing && selectedForCompose.includes(snippet.id)
                           ? "border-purple-500 bg-purple-50"
                           : "border-gray-200 bg-gray-50"
                       }`}
-                      onClick={() =>
-                        isComposing && toggleSnippetSelection(snippet.id)
-                      }
-                      style={{ cursor: isComposing ? "pointer" : "default" }}
                     >
-                      <div className="flex items-center gap-2">
-                        {isComposing && (
-                          <input
-                            type="checkbox"
-                            checked={selectedForCompose.includes(snippet.id)}
-                            onChange={(e) => {
-                              e.stopPropagation();
-                              toggleSnippetSelection(snippet.id);
-                            }}
-                            onClick={(e) => e.stopPropagation()}
-                            className="rounded border-gray-300"
-                          />
-                        )}
-                        <div>
-                          <div className="text-sm font-medium text-gray-800">
-                            #{index + 1} {snippet.displayName}
-                          </div>
-                          <div className="text-xs text-gray-500">
-                            x: {snippet.params.x}, y: {snippet.params.y}
+                      {/* 头部：基本信息 */}
+                      <div
+                        className="flex items-center justify-between p-2"
+                        onClick={() =>
+                          isComposing
+                            ? toggleSnippetSelection(snippet.id)
+                            : editingSnippetId === snippet.id
+                              ? (setEditingSnippetId(null), setEditingSnippetOriginal(null))
+                              : (setEditingSnippetId(snippet.id), setEditingSnippetOriginal({ ...snippet.params }))
+                        }
+                        style={{ cursor: isComposing ? "pointer" : "pointer" }}
+                      >
+                        <div className="flex items-center gap-2">
+                          {isComposing && (
+                            <input
+                              type="checkbox"
+                              checked={selectedForCompose.includes(snippet.id)}
+                              onChange={(e) => {
+                                e.stopPropagation();
+                                toggleSnippetSelection(snippet.id);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              className="rounded border-gray-300"
+                            />
+                          )}
+                          <div>
+                            <div className="text-sm font-medium text-gray-800">
+                              #{index + 1} {snippet.displayName}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {Object.entries(snippet.params)
+                                .filter(([key]) => !["isRender"].includes(key))
+                                .map(([key, value]) => (
+                                  <span key={key} className="mr-2">
+                                    {key}: {String(value)}
+                                  </span>
+                                ))}
+                            </div>
                           </div>
                         </div>
+                        <div className="flex items-center gap-2">
+                          {!isComposing && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (editingSnippetId === snippet.id) {
+                                  setEditingSnippetId(null);
+                                  setEditingSnippetOriginal(null);
+                                } else {
+                                  setEditingSnippetId(snippet.id);
+                                  setEditingSnippetOriginal({ ...snippet.params });
+                                }
+                              }}
+                              className="text-xs text-blue-500 hover:text-blue-700"
+                            >
+                              {editingSnippetId === snippet.id ? "收起" : "编辑"}
+                            </button>
+                          )}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteSnippet(snippet.id);
+                            }}
+                            className="text-xs text-red-500 hover:text-red-700"
+                          >
+                            删除
+                          </button>
+                        </div>
                       </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteSnippet(snippet.id);
-                        }}
-                        className="text-xs text-red-500 hover:text-red-700"
-                      >
-                        删除
-                      </button>
+
+                      {/* 编辑面板 */}
+                      {editingSnippetId === snippet.id && (
+                        <div className="border-t border-gray-200 p-2">
+                          <div className="space-y-2">
+                            {Object.keys(snippet.params)
+                              .filter((key) => key !== "isRender")
+                              .map((key) => {
+                                const value = snippet.params[key];
+                                const isNumber = typeof value === "number";
+
+                                return (
+                                  <div key={key} className="flex items-center gap-2">
+                                    <label className="w-16 text-xs text-gray-600">{key}:</label>
+                                    {isNumber ? (
+                                      <input
+                                        type="number"
+                                        value={value as number}
+                                        onChange={(e) => {
+                                          const newParams = {
+                                            ...snippet.params,
+                                            [key]: parseFloat(e.target.value) || 0,
+                                          };
+                                          setSnippets((prev) =>
+                                            prev.map((s) =>
+                                              s.id === snippet.id ? { ...s, params: newParams } : s
+                                            )
+                                          );
+                                        }}
+                                        className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs"
+                                      />
+                                    ) : (
+                                      <input
+                                        type="text"
+                                        value={String(value)}
+                                        onChange={(e) => {
+                                          const newParams = {
+                                            ...snippet.params,
+                                            [key]: e.target.value,
+                                          };
+                                          setSnippets((prev) =>
+                                            prev.map((s) =>
+                                              s.id === snippet.id ? { ...s, params: newParams } : s
+                                            )
+                                          );
+                                        }}
+                                        className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs"
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                          </div>
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              onClick={() =>
+                                applyEditedParams(snippet.id)
+                              }
+                              className="flex-1 rounded bg-blue-500 px-3 py-1 text-xs text-white hover:bg-blue-600"
+                            >
+                              应用
+                            </button>
+                            <button
+                              onClick={cancelEditParams}
+                              className="flex-1 rounded bg-gray-300 px-3 py-1 text-xs text-gray-700 hover:bg-gray-400"
+                            >
+                              取消
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
