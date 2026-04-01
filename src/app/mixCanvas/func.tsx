@@ -9,7 +9,7 @@ export const drawHorizontalLine = (
   params: DrawParams,
   isRender = true,
 ): FabricObject => {
-  const width = 100;
+  const width = (params.width as number) ?? 100;
   const line = new Polyline(
     [
       { x: params.x, y: params.y },
@@ -125,7 +125,7 @@ export const drawAll = (
   const { x, y } = params;
   const objects: FabricObject[] = [];
 
-  const horizontalLine = drawHorizontalLine(canvas, { x, y }, false);
+  const horizontalLine = drawHorizontalLine(canvas, { x, y, width: 100 }, false);
   const verticalLine = drawVerticalLine(
     canvas,
     { x: x + 20, y: y - 20 },
@@ -147,7 +147,7 @@ export const drawAll = (
 };
 
 // 自动注册所有绘制函数
-const moduleExports = {
+const allDrawFunc = {
   drawHorizontalLine,
   drawVerticalLine,
   drawDiagonalLine,
@@ -156,7 +156,7 @@ const moduleExports = {
 };
 
 globalRegistry.scanModule(
-  moduleExports as unknown as Record<string, unknown>,
+  allDrawFunc as unknown as Record<string, unknown>,
   (name) => name.startsWith("draw"),
 );
 
