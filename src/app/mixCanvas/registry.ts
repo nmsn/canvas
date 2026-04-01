@@ -53,12 +53,23 @@ export function extractParamDefaults(fn: Function): Record<string, number | stri
   const fnStr = fn.toString();
   const defaults: Record<string, number | string | boolean> = {};
 
-  // 匹配 `key = value` 或 `key= value` 等格式
-  // 支持数字、字符串、布尔值
+  // 只在函数参数列表内搜索默认值
+  // 找到第一个 ( 和对应的 )
+  const paramStart = fnStr.indexOf('(');
+  const paramEnd = fnStr.indexOf(')');
+  if (paramStart === -1 || paramEnd === -1 || paramEnd <= paramStart) {
+    return defaults;
+  }
+
+  // 只搜索参数列表部分
+  const paramSection = fnStr.substring(paramStart, paramEnd + 1);
+
+  // 匹配参数默认值: `key = value` 格式
+  // 支持: 数字 (100)、字符串 ('value' / "value")、布尔 (true/false)
   const defaultPattern = /(\w+)\s*=\s*(?:(\d+(?:\.\d+)?)|'(.*?)'|"(.*?)"|(\w+))/g;
   let match;
 
-  while ((match = defaultPattern.exec(fnStr)) !== null) {
+  while ((match = defaultPattern.exec(paramSection)) !== null) {
     const key = match[1]!;
     const numStr = match[2];
     const singleStr = match[3];
