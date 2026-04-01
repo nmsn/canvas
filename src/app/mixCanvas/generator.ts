@@ -18,7 +18,11 @@ export interface SnippetConfig {
  * @returns 代码字符串
  */
 export function generateSnippetCode(snippet: CanvasSnippet): string {
-  return `${snippet.funcName}(canvas, { x: ${snippet.params.x}, y: ${snippet.params.y} });`;
+  const paramsStr = Object.entries(snippet.params)
+    .filter(([key]) => key !== "isRender")
+    .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+    .join(", ");
+  return `${snippet.funcName}(canvas, { ${paramsStr} });`;
 }
 
 /**
@@ -72,10 +76,19 @@ export function generateCompositionCode(
   ];
 
   configs.forEach((config, i) => {
+    // 提取除了 x, y 之外的额外参数
+    const otherParams = Object.entries(snippets[i].params)
+      .filter(([key]) => !["x", "y", "isRender"].includes(key))
+      .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+      .join(", ");
+
     lines.push(`  // 组件 ${i + 1}: ${config.funcName}`);
     lines.push(`  const obj${i} = ${config.funcName}(canvas, {`);
     lines.push(`    x: x + ${config.offsetX},`);
     lines.push(`    y: y + ${config.offsetY},`);
+    if (otherParams) {
+      lines.push(`    ${otherParams},`);
+    }
     lines.push(`  });`);
     lines.push(`  objects.push(obj${i});`);
     lines.push(``);
