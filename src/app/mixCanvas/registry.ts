@@ -19,24 +19,62 @@ export type DrawFunc = (
 /**
  * 排除的参数名（内部使用，不暴露给 UI）
  */
-const EXCLUDED_PARAMS = ["canvas", "isRender", "position"];
+const EXCLUDED_PARAMS = ["canvas", "isRender"];
 
 /**
- * 从绘制函数签名中提取可编辑参数 key 列表
- * 通过分析函数体内访问的 params 对象属性来判断
+ * 解析函数参数（支持多解构块）
+ * @param fn - 函数
+ * @returns 所有解构块的参数名数组（按块顺序）
+ */
+function parseParamBlocks(fn: Function): string[][] {
+  const src = fn.toString();
+
+  // 匹配所有解构块 { ... }
+  const destructuredMatches = src.matchAll(/\)\s*\{([^}]*)\}/g);
+  const blocks: string[][] = [];
+
+  for (const match of destructuredMatches) {
+    const content = match[1]!;
+    const params = content
+      .split(",")
+      .map((p: string) => {
+        // 处理 TypeScript 类型注解: { x, y }: Position 或 { width = 100 }: { width?: number }
+        const beforeColon = p.split(":")[0]!.trim();
+        // 处理带默认值的: width = 100
+        return beforeColon.split("=")[0]!.trim();
+      })
+      .filter(Boolean);
+    blocks.push(params);
+  }
+
+  return blocks;
+}
+
+/**
+ * 从绘制函数签名中提取可编辑参数 key 列表（第三个解构块）
+ * 新签名: drawFn(canvas, { x, y }, { width, height }, isRender)
+ * - 第一个解构块: position (x, y) - 不暴露
+ * - 第二个解构块: params (width, height 等) - 暴露给 UI
  *
  * @param fn - 绘制函数
  * @returns 参数 key 数组
  */
 export function extractParamKeys(fn: Function): string[] {
+  const blocks = parseParamBlocks(fn);
+
+  // 新签名中，第二个解构块（index 1）是 params
+  if (blocks.length >= 2 && blocks[1]) {
+    return blocks[1];
+  }
+
+  // 降级：使用旧的 params.xxx 匹配方式
   const fnStr = fn.toString();
-  // 匹配 params.xxx 或 params["xxx"] 模式
   const matches = fnStr.matchAll(/params\.(?:(\w+)|\[(['"])(\w+)\2\])/g);
   const keys = new Set<string>();
 
   for (const match of matches) {
     const key = match[1] || match[3];
-    if (key && !EXCLUDED_PARAMS.includes(key)) {
+    if (key) {
       keys.add(key);
     }
   }
@@ -46,7 +84,7 @@ export function extractParamKeys(fn: Function): string[] {
 
 /**
  * 从绘制函数签名中提取参数的默认值
- * 匹配类似 `key = value` 的模式，支持 number、string、boolean
+ * 支持从解构块中提取默认值 { width = 100 }
  *
  * @param fn - 绘制函数
  * @returns 包含默认值 key-value 的对象
@@ -55,17 +93,15 @@ export function extractParamDefaults(fn: Function): Record<string, number | stri
   const fnStr = fn.toString();
   const defaults: Record<string, number | string | boolean> = {};
 
-  // 1. 从函数参数列表中提取默认值
-  const paramStart = fnStr.indexOf('(');
-  const paramEnd = fnStr.indexOf(')');
-  if (paramStart !== -1 && paramEnd !== -1 && paramEnd > paramStart) {
-    const paramSection = fnStr.substring(paramStart, paramEnd + 1);
-
-    // 匹配参数默认值: key = value 格式
+  // 1. 从解构块中提取默认值（第二个块是 params）
+  const blocks = parseParamBlocks(fn);
+  if (blocks.length >= 2 && blocks[1]) {
+    const paramsBlock = blocks[1];
+    // 匹配 key = value 格式
     const defaultPattern = /\b(\w+)\s*=\s*(?:(\d+(?:\.\d+)?)|'(.*?)'|"(.*?)"|(\w+))/g;
     let match;
 
-    while ((match = defaultPattern.exec(paramSection)) !== null) {
+    while ((match = defaultPattern.exec(paramsBlock.join(","))) !== null) {
       const key = match[1]!;
       const numStr = match[2];
       const singleStr = match[3];
@@ -86,21 +122,18 @@ export function extractParamDefaults(fn: Function): Record<string, number | stri
     }
   }
 
-  // 2. 从函数体中搜索 params.xxx ?? default 模式
-  // 匹配 (params.width as number) ?? 100 或 params.width ?? 100
-  // 注意: .*? 允许 ?? 和参数名之间有任何内容 (如类型注解)
+  // 2. 从函数体中搜索 params.xxx ?? default 模式（降级兼容）
   const nullishPattern = /params\.(\w+).*?\?\?\s*(?:(\d+(?:\.\d+)?)|'(.*?)'|"(.*?)")/g;
   let nullishMatch;
 
   while ((nullishMatch = nullishPattern.exec(fnStr)) !== null) {
-    // 提取参数名
     const paramAccess = nullishMatch[0];
     const paramNameMatch = paramAccess.match(/params\.(\w+)/);
     if (!paramNameMatch) continue;
 
     const paramName = paramNameMatch[1]!;
     if (EXCLUDED_PARAMS.includes(paramName)) continue;
-    if (paramName in defaults) continue; // 参数列表中已有，跳过
+    if (paramName in defaults) continue;
 
     const value = nullishMatch[1] ?? nullishMatch[2] ?? nullishMatch[3];
     if (value !== undefined) {
