@@ -51,6 +51,7 @@ const FabricCalcPage: FC<PageProps> = () => {
   // 片段参数编辑状态
   const [editingSnippetId, setEditingSnippetId] = useState<string | null>(null);
   const [editingSnippetOriginal, setEditingSnippetOriginal] = useState<DrawParams | null>(null);
+  const [editingParamsJson, setEditingParamsJson] = useState("");
 
   // 获取所有绘制函数
   const drawFunctions = getDrawFunctions();
@@ -202,8 +203,9 @@ const FabricCalcPage: FC<PageProps> = () => {
     setSnippets((prev) =>
       prev.map((snippet) => {
         if (snippet.fabricObject === fabricObject) {
-          // 获取对象的当前坐标
+          // 保留所有现有参数，只更新 x/y
           const updatedParams: DrawParams = {
+            ...snippet.params,
             x: Math.round(fabricObject.left ?? snippet.params.x),
             y: Math.round(fabricObject.top ?? snippet.params.y),
           };
@@ -221,12 +223,42 @@ const FabricCalcPage: FC<PageProps> = () => {
    * 应用编辑后的参数到片段
    */
   const applyEditedParams = useCallback(
-    (snippetId: string) => {
-      // state 已在 onChange 时更新，此处只需关闭编辑模式
+    (snippetId: string, newParams: DrawParams) => {
+      if (!fabricCanvasRef.current) return;
+
+      const snippet = snippets.find((s) => s.id === snippetId);
+      if (!snippet) return;
+
+      // 移除旧的 Fabric 对象
+      if (Array.isArray(snippet.fabricObject)) {
+        snippet.fabricObject.forEach((obj) =>
+          fabricCanvasRef.current?.remove(obj)
+        );
+      } else {
+        fabricCanvasRef.current?.remove(snippet.fabricObject);
+      }
+
+      // 重新执行绘制函数
+      const funcEntry = drawFunctions.find((f) => f.name === snippet.funcName);
+      if (!funcEntry) return;
+
+      const newFabricObject = funcEntry.execute(fabricCanvasRef.current, newParams);
+
+      fabricCanvasRef.current.requestRenderAll();
+
+      // 更新 snippet
+      setSnippets((prev) =>
+        prev.map((s) =>
+          s.id === snippetId
+            ? { ...s, params: newParams, fabricObject: newFabricObject }
+            : s
+        )
+      );
+
       setEditingSnippetId(null);
       setEditingSnippetOriginal(null);
     },
-    [],
+    [snippets, drawFunctions],
   );
 
   /**
@@ -243,6 +275,7 @@ const FabricCalcPage: FC<PageProps> = () => {
     }
     setEditingSnippetId(null);
     setEditingSnippetOriginal(null);
+    setEditingParamsJson("");
   }, [editingSnippetId, editingSnippetOriginal]);
 
   /**
@@ -258,6 +291,7 @@ const FabricCalcPage: FC<PageProps> = () => {
       setCompositionName("draw");
       setEditingSnippetId(null);
       setEditingSnippetOriginal(null);
+      setEditingParamsJson("");
     }
   }, []);
 
@@ -271,6 +305,7 @@ const FabricCalcPage: FC<PageProps> = () => {
     setCompositionName("draw");
     setEditingSnippetId(null);
     setEditingSnippetOriginal(null);
+    setEditingParamsJson("");
   }, []);
 
   /**
@@ -481,8 +516,8 @@ const FabricCalcPage: FC<PageProps> = () => {
                           isComposing
                             ? toggleSnippetSelection(snippet.id)
                             : editingSnippetId === snippet.id
-                              ? (setEditingSnippetId(null), setEditingSnippetOriginal(null))
-                              : (setEditingSnippetId(snippet.id), setEditingSnippetOriginal({ ...snippet.params }))
+                              ? (setEditingSnippetId(null), setEditingSnippetOriginal(null), setEditingParamsJson(""))
+                              : (setEditingSnippetId(snippet.id), setEditingSnippetOriginal({ ...snippet.params }), setEditingParamsJson(JSON.stringify(snippet.params, null, 2)))
                         }
                         style={{ cursor: isComposing ? "pointer" : "pointer" }}
                       >
@@ -522,9 +557,11 @@ const FabricCalcPage: FC<PageProps> = () => {
                                 if (editingSnippetId === snippet.id) {
                                   setEditingSnippetId(null);
                                   setEditingSnippetOriginal(null);
+                                  setEditingParamsJson("");
                                 } else {
                                   setEditingSnippetId(snippet.id);
                                   setEditingSnippetOriginal({ ...snippet.params });
+                                  setEditingParamsJson(JSON.stringify(snippet.params, null, 2));
                                 }
                               }}
                               className="text-xs text-blue-500 hover:text-blue-700"
@@ -547,60 +584,23 @@ const FabricCalcPage: FC<PageProps> = () => {
                       {/* 编辑面板 */}
                       {editingSnippetId === snippet.id && (
                         <div className="border-t border-gray-200 p-2">
-                          <div className="space-y-2">
-                            {Object.keys(snippet.params)
-                              .filter((key) => key !== "isRender")
-                              .map((key) => {
-                                const value = snippet.params[key];
-                                const isNumber = typeof value === "number";
-
-                                return (
-                                  <div key={key} className="flex items-center gap-2">
-                                    <label className="w-16 text-xs text-gray-600">{key}:</label>
-                                    {isNumber ? (
-                                      <input
-                                        type="number"
-                                        value={value ?? 0}
-                                        onChange={(e) => {
-                                          const newParams = {
-                                            ...snippet.params,
-                                            [key]: parseFloat(e.target.value) || 0,
-                                          };
-                                          setSnippets((prev) =>
-                                            prev.map((s) =>
-                                              s.id === snippet.id ? { ...s, params: newParams } : s
-                                            )
-                                          );
-                                        }}
-                                        className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs"
-                                      />
-                                    ) : (
-                                      <input
-                                        type="text"
-                                        value={String(value ?? "")}
-                                        onChange={(e) => {
-                                          const newParams = {
-                                            ...snippet.params,
-                                            [key]: e.target.value,
-                                          };
-                                          setSnippets((prev) =>
-                                            prev.map((s) =>
-                                              s.id === snippet.id ? { ...s, params: newParams } : s
-                                            )
-                                          );
-                                        }}
-                                        className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs"
-                                      />
-                                    )}
-                                  </div>
-                                );
-                              })}
-                          </div>
+                          <textarea
+                            value={editingParamsJson}
+                            onChange={(e) => setEditingParamsJson(e.target.value)}
+                            className="w-full rounded border border-gray-300 p-2 font-mono text-xs"
+                            rows={6}
+                            spellCheck={false}
+                          />
                           <div className="mt-2 flex gap-2">
                             <button
-                              onClick={() =>
-                                applyEditedParams(snippet.id)
-                              }
+                              onClick={() => {
+                                try {
+                                  const newParams = JSON.parse(editingParamsJson) as DrawParams;
+                                  applyEditedParams(snippet.id, newParams);
+                                } catch {
+                                  alert("JSON 格式错误，请检查输入");
+                                }
+                              }}
                               className="flex-1 rounded bg-blue-500 px-3 py-1 text-xs text-white hover:bg-blue-600"
                             >
                               应用
