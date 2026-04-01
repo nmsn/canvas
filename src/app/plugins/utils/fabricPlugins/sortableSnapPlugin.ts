@@ -236,6 +236,7 @@ export class SortableSnapPlugin {
         obj: peer.obj,
       })),
     ];
+    // 把占位符的位置空出来了
     slots.splice(insertIndex, 0, {
       kind: "placeholder" as const,
       width: dragWidth,

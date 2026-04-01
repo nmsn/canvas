@@ -25,6 +25,7 @@ export class DimensionPlugin {
   }
 
   enable() {
+    // 防止重复执行
     if (this.enabled) {
       return;
     }
@@ -40,6 +41,7 @@ export class DimensionPlugin {
     }
 
     this.enabled = false;
+    // TODO 生命周期
     this.canvas.off("after:render", this.handleAfterRender);
     this.clearOverlay();
     this.canvas.requestRenderAll();
@@ -55,6 +57,21 @@ export class DimensionPlugin {
     }
 
     this.clearOverlay();
+    // 环境变量
+
+    // 这是 fabric 多层canvas 结构的顶层画布上下文
+
+    // ┌─────────────────────────────┐
+    // │  upperCanvasEl (顶层)         │  ← getTopContext() 获取这里
+    // │  - 用于绘制标注、辅助线等覆盖物  │
+    // ├─────────────────────────────┤
+    // │  oUpperCanvasEl (对象层)      │
+    // │  - 用于绘制 Fabric 物体        │
+    // ├─────────────────────────────┤
+    // │  lowerCanvasEl (底层)         │
+    // │  - 用于绘制背景等              │
+    // └─────────────────────────────┘
+
     const context = this.canvas.getTopContext();
     const zoom = this.canvas.getZoom() || 1;
     const viewportTransform = this.canvas.viewportTransform;
@@ -62,6 +79,7 @@ export class DimensionPlugin {
 
     context.save();
 
+    // 视口变换矩阵（不是重点）
     if (viewportTransform) {
       context.transform(
         viewportTransform[0],
@@ -74,6 +92,7 @@ export class DimensionPlugin {
     }
 
     for (const object of objects) {
+      // 获得元素坐标
       const bounds = toSceneBounds(object);
       const lineWidth = 1 / zoom;
       const fontSize = this.options.fontSize / zoom;
@@ -83,6 +102,8 @@ export class DimensionPlugin {
       context.lineWidth = lineWidth;
       context.setLineDash([]);
 
+
+      // 物体上方的水平线
       this.drawMeasureLine(
         context,
         bounds.left,
@@ -94,6 +115,7 @@ export class DimensionPlugin {
         zoom,
       );
 
+      // 物体右侧的垂直线
       this.drawMeasureLine(
         context,
         bounds.left + bounds.width + offset,
@@ -105,6 +127,7 @@ export class DimensionPlugin {
         zoom,
       );
 
+      // 绘制坐标文字
       context.fillStyle = this.options.textColor;
       context.font = `${fontSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
       context.textAlign = "left";
@@ -134,6 +157,7 @@ export class DimensionPlugin {
     context.restore();
   }
 
+  // 尺寸线绘制
   private drawMeasureLine(
     context: CanvasRenderingContext2D,
     x1: number,
@@ -146,13 +170,13 @@ export class DimensionPlugin {
   ) {
     const tickLength = this.options.tickLength / zoom;
     const fontSize = this.options.fontSize / zoom;
-    const midX = (x1 + x2) / 2;
-    const midY = (y1 + y2) / 2;
 
+    // 绘制主线
     context.beginPath();
     context.moveTo(x1, y1);
     context.lineTo(x2, y2);
 
+    // 绘制两端的刻度线
     if (horizontal) {
       context.moveTo(x1, y1 - tickLength);
       context.lineTo(x1, y1 + tickLength);
@@ -166,7 +190,11 @@ export class DimensionPlugin {
     }
 
     context.stroke();
-
+    
+    // 中间位置是为了找文字位置的
+    const midX = (x1 + x2) / 2;
+    const midY = (y1 + y2) / 2;
+    // 绘制文字
     context.font = `${fontSize}px ui-monospace, SFMono-Regular, Menlo, monospace`;
     context.fillStyle = this.options.textColor;
     context.textAlign = "center";
@@ -174,6 +202,7 @@ export class DimensionPlugin {
     context.fillText(label, midX, midY);
   }
 
+  // 间距标注
   private drawGapAnnotations(
     context: CanvasRenderingContext2D,
     objects: PluginCanvasObject[],
@@ -204,8 +233,11 @@ export class DimensionPlugin {
     context.textBaseline = "bottom";
 
     for (let index = 0; index < boundsList.length - 1; index += 1) {
+      // 两两进行比较，找出水平间距，并绘制标注
       const current = boundsList[index]!.bounds;
       const next = boundsList[index + 1]!.bounds;
+
+      // 判断高度重叠部分，如果没有重叠则不标注
       const verticalOverlap =
         Math.min(current.top + current.height, next.top + next.height) -
         Math.max(current.top, next.top);
