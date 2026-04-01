@@ -15,6 +15,35 @@ export interface DrawParams {
 export type DrawFunc = (canvas: Canvas, params: DrawParams) => FabricObject;
 
 /**
+ * 排除的参数名（内部使用，不暴露给 UI）
+ */
+const EXCLUDED_PARAMS = ["canvas", "isRender"];
+
+/**
+ * 从绘制函数签名中提取可编辑参数 key 列表
+ * 通过分析函数体内访问的 params 对象属性来判断
+ *
+ * 简化实现：扫描函数源码，匹配 params.xxx 模式
+ * @param fn - 绘制函数
+ * @returns 参数 key 数组
+ */
+export function extractParamKeys(fn: Function): string[] {
+  const fnStr = fn.toString();
+  // 匹配 params.xxx 或 params["xxx"] 模式
+  const matches = fnStr.matchAll(/params\.(?:(\w+)|\[(['"])(\w+)\2\])/g);
+  const keys = new Set<string>();
+
+  for (const match of matches) {
+    const key = match[1] || match[3];
+    if (key && !EXCLUDED_PARAMS.includes(key)) {
+      keys.add(key);
+    }
+  }
+
+  return Array.from(keys);
+}
+
+/**
  * 函数注册项
  */
 export interface FuncEntry {
@@ -24,6 +53,8 @@ export interface FuncEntry {
   displayName: string;
   /** 执行函数 */
   execute: DrawFunc;
+  /** 可编辑参数 key 列表（如 ['x', 'y', 'width']） */
+  paramKeys: string[];
 }
 
 /**
@@ -91,10 +122,13 @@ export class FuncRegistry {
         if (filter && !filter(name, fn)) continue;
 
         const displayName = this.generateDisplayName(name);
+        const paramKeys = extractParamKeys(fn as Function);
+
         this.register({
           name,
           displayName,
           execute: fn as DrawFunc,
+          paramKeys,
         });
       }
     }
