@@ -10,6 +10,7 @@ import {
 } from 'react'
 import { Canvas } from 'fabric'
 import {
+  ConnectionPlugin,
   DimensionPlugin,
   SortableSnapPlugin,
   addGrid,
@@ -96,6 +97,7 @@ export default function PluginsPage() {
   const canvasRef = useRef<Canvas | null>(null)
   const dimensionPluginRef = useRef<DimensionPlugin | null>(null)
   const sortablePluginRef = useRef<SortableSnapPlugin | null>(null)
+  const connectionPluginRef = useRef<ConnectionPlugin | null>(null)
   const rowOneCursorRef = useRef(60)
   const labelIndexRef = useRef(0)
   const logIdRef = useRef(0)
@@ -109,6 +111,7 @@ export default function PluginsPage() {
   })
   const [dimensionEnabled, setDimensionEnabled] = useState(false)
   const [sortableEnabled, setSortableEnabled] = useState(false)
+  const [connectionEnabled, setConnectionEnabled] = useState(false)
 
   const appendLog = (message: string, type: PluginLogType = 'info') => {
     const item: LogItem = {
@@ -204,6 +207,13 @@ export default function PluginsPage() {
     dimensionPluginRef.current = dimensionPlugin
     sortablePluginRef.current = sortablePlugin
 
+    const connectionPlugin = new ConnectionPlugin(canvas, {
+      lineColor: '#6366f1',
+      lineWidth: 1.5,
+      curvature: 0.5,
+    })
+    connectionPluginRef.current = connectionPlugin
+
     const handleCanvasMutation = () => updateStats()
     canvas.on('selection:created', handleCanvasMutation)
     canvas.on('selection:updated', handleCanvasMutation)
@@ -219,10 +229,12 @@ export default function PluginsPage() {
     return () => {
       dimensionPlugin.disable()
       sortablePlugin.disable()
+      connectionPlugin.disable()
       canvas.dispose()
       canvasRef.current = null
       dimensionPluginRef.current = null
       sortablePluginRef.current = null
+      connectionPluginRef.current = null
     }
   }, [])
 
@@ -347,6 +359,36 @@ export default function PluginsPage() {
     updateStats()
   }
 
+  const toggleConnectionPlugin = (enabled: boolean) => {
+    const plugin = connectionPluginRef.current
+    if (!plugin) {
+      return
+    }
+
+    if (enabled) {
+      plugin.enable()
+    } else {
+      plugin.disable()
+    }
+
+    setConnectionEnabled(enabled)
+    appendLog(`连接线插件${enabled ? '已开启' : '已关闭'}`, 'info')
+  }
+
+  const addConnection = () => {
+    const plugin = connectionPluginRef.current
+    const canvas = canvasRef.current
+    if (!plugin || !canvas) {
+      return
+    }
+
+    const objects = canvas.getObjects().filter((obj) => !(obj as { data?: Record<string, unknown> }).data?.isGrid)
+    if (objects.length >= 2) {
+      plugin.connect(objects[0]!, objects[1]!)
+      appendLog('添加连接线', 'info')
+    }
+  }
+
   const zoomCanvas = (nextZoom: number) => {
     const canvas = canvasRef.current
     if (!canvas) {
@@ -381,6 +423,9 @@ export default function PluginsPage() {
             <span className={`rounded-full border px-3 py-1 text-[11px] font-medium ${sortableEnabled ? 'border-emerald-300 bg-emerald-50 text-emerald-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
               SortableSnapPlugin
             </span>
+            <span className={`rounded-full border px-3 py-1 text-[11px] font-medium ${connectionEnabled ? 'border-violet-300 bg-violet-50 text-violet-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+              ConnectionPlugin
+            </span>
             <Link
               href="/"
               className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 transition hover:border-slate-300 hover:text-slate-950"
@@ -407,11 +452,19 @@ export default function PluginsPage() {
               checked={sortableEnabled}
               onChange={toggleSortablePlugin}
             />
+            <PluginCard
+              active={connectionEnabled}
+              description="在两个对象之间绘制带曲率的连接线。"
+              title="连接线"
+              checked={connectionEnabled}
+              onChange={toggleConnectionPlugin}
+            />
 
             <SectionTitle title="添加元素" className="mt-6" />
             <div className="grid gap-2">
               <SidebarButton onClick={addRect}>＋ 矩形</SidebarButton>
               <SidebarButton onClick={addCircleToRowOne}>＋ 圆形</SidebarButton>
+              <SidebarButton onClick={addConnection}>＋ 连接</SidebarButton>
             </div>
 
             <SectionTitle title="填充颜色" className="mt-6" />
