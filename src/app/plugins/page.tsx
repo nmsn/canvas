@@ -221,8 +221,9 @@ export default function PluginsPage() {
       maxSelectCount: 2,
       onSelectionChange: (selected) => {
         if (selected.length === 2) {
+          connectionPlugin.clear()
           connectionPlugin.connect(selected[0]!, selected[1]!)
-        } else if (selected.length === 0) {
+        } else {
           connectionPlugin.clear()
         }
       },
