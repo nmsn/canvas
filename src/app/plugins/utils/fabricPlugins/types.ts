@@ -62,3 +62,23 @@ export type LayoutSlot =
       width: number;
       obj: null;
     };
+
+// Connection Plugin types
+export interface ConnectionPluginOptions {
+  lineColor?: string;
+  lineWidth?: number;
+  curvature?: number;
+  arrowSize?: number;  // 预留
+}
+
+export interface ConnectionOptions {
+  lineColor?: string;
+  lineWidth?: number;
+  curvature?: number;
+}
+
+export interface Connection {
+  from: PluginCanvasObject;
+  to: PluginCanvasObject;
+  options?: ConnectionOptions;
+}
