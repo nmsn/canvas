@@ -60,7 +60,132 @@ export class ConnectionPlugin {
   }
 
   private draw() {
-    // 实现见 Task 3 - 目前为空
+    if (!this.enabled) return;
+
+    this.clearOverlay();
+    const context = this.canvas.getTopContext();
+    const zoom = this.canvas.getZoom() || 1;
+    const viewportTransform = this.canvas.viewportTransform;
+
+    context.save();
+
+    if (viewportTransform) {
+      context.transform(
+        viewportTransform[0],
+        viewportTransform[1],
+        viewportTransform[2],
+        viewportTransform[3],
+        viewportTransform[4],
+        viewportTransform[5],
+      );
+    }
+
+    for (const conn of this.connections) {
+      // 检查对象是否仍存在于画布
+      if (!this.canvas.getObjects().includes(conn.from as unknown as import("fabric").FabricObject)) continue;
+      if (!this.canvas.getObjects().includes(conn.to as unknown as import("fabric").FabricObject)) continue;
+
+      const { startX, startY, endX, endY, cp1x, cp1y, cp2x, cp2y } =
+        this.computeBezierPoints(conn);
+
+      const lineColor = conn.options?.lineColor ?? this.options.lineColor;
+      const lineWidth = (conn.options?.lineWidth ?? this.options.lineWidth) / zoom;
+
+      context.strokeStyle = lineColor;
+      context.lineWidth = lineWidth;
+      context.setLineDash([]);
+
+      context.beginPath();
+      context.moveTo(startX, startY);
+      context.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, endX, endY);
+      context.stroke();
+    }
+
+    context.restore();
+  }
+
+  private computeBezierPoints(conn: Connection): {
+    startX: number;
+    startY: number;
+    endX: number;
+    endY: number;
+    cp1x: number;
+    cp1y: number;
+    cp2x: number;
+    cp2y: number;
+  } {
+    const fromBounds = this.getSceneBounds(conn.from);
+    const toBounds = this.getSceneBounds(conn.to);
+
+    const srcCx = fromBounds.left + fromBounds.width / 2;
+    const srcCy = fromBounds.top + fromBounds.height / 2;
+    const tgtCx = toBounds.left + toBounds.width / 2;
+    const tgtCy = toBounds.top + toBounds.height / 2;
+
+    const curvature = conn.options?.curvature ?? this.options.curvature;
+
+    let startX: number, startY: number, endX: number, endY: number;
+
+    // 选择锚点 - 根据相对位置选择边缘中点
+    if (tgtCx > srcCx) {
+      // 源在左，目标在右 → 从源右边缘中点 到 目标左边缘中点
+      startX = fromBounds.left + fromBounds.width;
+      startY = fromBounds.top + fromBounds.height / 2;
+      endX = toBounds.left;
+      endY = toBounds.top + toBounds.height / 2;
+    } else if (tgtCx < srcCx) {
+      // 源在右，目标在左
+      startX = fromBounds.left;
+      startY = fromBounds.top + fromBounds.height / 2;
+      endX = toBounds.left + toBounds.width;
+      endY = toBounds.top + toBounds.height / 2;
+    } else if (tgtCy > srcCy) {
+      // 源在上，目标在下
+      startX = srcCx;
+      startY = fromBounds.top + fromBounds.height;
+      endX = tgtCx;
+      endY = toBounds.top;
+    } else {
+      // 源在下，目标在上
+      startX = srcCx;
+      startY = fromBounds.top;
+      endX = tgtCx;
+      endY = toBounds.top + toBounds.height;
+    }
+
+    // 计算控制点
+    const distanceX = Math.abs(endX - startX);
+    const distanceY = Math.abs(endY - startY);
+
+    let cp1x: number, cp1y: number, cp2x: number, cp2y: number;
+
+    if (distanceX >= distanceY) {
+      // 水平关系为主 → S 弯
+      const offset = distanceX * curvature;
+      cp1x = startX + offset;
+      cp1y = startY;
+      cp2x = endX - offset;
+      cp2y = endY;
+    } else {
+      // 垂直关系为主 → C 弯
+      const offset = distanceY * curvature;
+      cp1x = startX;
+      cp1y = startY + offset;
+      cp2x = endX;
+      cp2y = endY - offset;
+    }
+
+    return { startX, startY, endX, endY, cp1x, cp1y, cp2x, cp2y };
+  }
+
+  private getSceneBounds(obj: PluginCanvasObject) {
+    const bounds = obj.getBoundingRect();
+    return {
+      left: bounds.left,
+      top: bounds.top,
+      width: bounds.width,
+      height: bounds.height,
+    };
   }
 
   // API 方法见 Task 4
