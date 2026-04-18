@@ -82,3 +82,12 @@ export interface Connection {
   to: PluginCanvasObject;
   options?: ConnectionOptions;
 }
+
+// SelectionPoolPlugin types
+export interface SelectionPoolPluginOptions {
+  maxSelectCount?: number;           // 最大选中个数，默认 2
+  selectedStroke?: string;           // 选中边框颜色，默认 '#6366f1'
+  selectedStrokeWidth?: number;      // 选中边框宽度，默认 2
+  selectedShadow?: string;           // 选中阴影，默认 '0 0 8px rgba(99,102,241,0.6)'
+  onSelectionChange?: (objects: PluginCanvasObject[]) => void;  // 选中变化回调
+}
