@@ -205,13 +205,18 @@ export class ConnectionPlugin {
     // 禁止自连接
     if (source === target) return;
 
-    // 检查是否已存在相同连接
+    // 规范化：让 A→B 和 B→A 存储为同一顺序（按 left 排序）
+    const [from, to] = (source.left ?? 0) <= (target.left ?? 0)
+      ? [source, target]
+      : [target, source];
+
+    // 检查是否已存在相同连接（考虑规范化）
     const exists = this.connections.some(
-      (c) => c.from === source && c.to === target,
+      (c) => c.from === from && c.to === to,
     );
     if (exists) return;
 
-    this.connections.push({ from: source, to: target, options });
+    this.connections.push({ from, to, options });
     if (this.enabled) {
       this.canvas.requestRenderAll();
     }
@@ -221,7 +226,11 @@ export class ConnectionPlugin {
     this.connections = [];
     for (const conn of connections) {
       if (conn.from !== conn.to) {
-        this.connections.push(conn);
+        // 规范化
+        const [from, to] = (conn.from.left ?? 0) <= (conn.to.left ?? 0)
+          ? [conn.from, conn.to]
+          : [conn.to, conn.from];
+        this.connections.push({ from, to, options: conn.options });
       }
     }
     if (this.enabled) {
@@ -230,8 +239,13 @@ export class ConnectionPlugin {
   }
 
   disconnect(source: PluginCanvasObject, target: PluginCanvasObject) {
+    // 规范化（考虑 A→B 和 B→A 可能是同一连接）
+    const [from, to] = (source.left ?? 0) <= (target.left ?? 0)
+      ? [source, target]
+      : [target, source];
+
     const index = this.connections.findIndex(
-      (c) => c.from === source && c.to === target,
+      (c) => c.from === from && c.to === to,
     );
     if (index !== -1) {
       this.connections.splice(index, 1);
