@@ -1,6 +1,6 @@
 # Fabric.js 插件系统 — 项目重难点总结
 
-> 基于 Fabric.js 画布引擎实现的两个核心插件：**DimensionPlugin（尺寸标注）** 和 **SortableSnapPlugin（拖拽排序吸附）**。
+> 基于 Fabric.js 画布引擎实现的四个核心插件：**DimensionPlugin（尺寸标注）**、**SortableSnapPlugin（拖拽排序吸附）**、**ConnectionPlugin（贝塞尔连线）**、**SelectionPoolPlugin（选中池管理）**。
 
 ---
 
@@ -234,19 +234,171 @@ row.objects.splice(insertIndex, 0, target);
 
 ---
 
-## 四、共享层设计
+## 四、ConnectionPlugin — 贝塞尔曲线连接线插件
 
-### 4.1 业务对象过滤
+### 4.1 设计思路
+
+| 特性 | 说明 |
+|------|------|
+| 渲染方式 | overlay 纯绘制，不污染对象树 |
+| 渲染时机 | `after:render` 事件，每次画布重绘时重绘所有连线 |
+| 连接方式 | 声明式 `connect()` API，支持批量 `setConnections()` |
+
+核心交互：`connect(source, target)` 在两个元素间绘制贝塞尔曲线连接线。
+
+### 4.2 自动锚点算法
+
+#### 锚点选择
+
+每个元素有 4 个锚点：上、下、左、右边缘的中点。
+
+连线时计算源元素 4 个锚点到目标中心的欧几里得距离，**选择最近者**作为起点：
 
 ```ts
-function isBusinessObject(object): object is PluginCanvasObject {
-  return !data?.isGrid && !data?.isPlaceholder && !data?.isDimAnnotation;
+const anchors = [
+  { name: 'top',    x: srcCx, y: bounds.top },
+  { name: 'bottom', x: srcCx, y: bounds.top + bounds.height },
+  { name: 'left',   x: bounds.left, y: srcCy },
+  { name: 'right',  x: bounds.left + bounds.width, y: srcCy },
+];
+
+let bestAnchor = anchors[0];
+let bestDistance = Infinity;
+for (const anchor of anchors) {
+  const dist = Math.sqrt((anchor.x - tgtCx) ** 2 + (anchor.y - tgtCy) ** 2);
+  if (dist < bestDistance) {
+    bestDistance = dist;
+    bestAnchor = anchor;
+  }
 }
 ```
 
-通过 `data` 上的标记位区分对象类型，避免用 `instanceof` 或类名做类型判断，**使数据标记和业务逻辑解耦**。网格线、占位符、标注辅助对象都不参与插件逻辑。
+#### 控制点计算
 
-### 4.2 Layout 尺寸的三级降级策略
+根据距离比例决定曲线形态：
+
+```ts
+const distanceX = Math.abs(endX - startX);
+const distanceY = Math.abs(endY - startY);
+
+if (distanceX >= distanceY) {
+  // 水平关系为主 → S 弯
+  const offset = distanceX * curvature;
+  cp1x = startX + offset;
+  cp2x = endX - offset;
+} else {
+  // 垂直关系为主 → C 弯
+  const offset = distanceY * curvature;
+  cp1y = startY + offset;
+  cp2y = endY - offset;
+}
+```
+
+### 4.3 连接方向规范化
+
+`connect(A, B)` 和 `connect(B, A)` 应产生相同的曲线。通过按 `left` 位置排序存储实现**无向连接**：
+
+```ts
+const [from, to] = source.left <= target.left
+  ? [source, target]
+  : [target, source];
+```
+
+### 4.4 与 SelectionPoolPlugin 联动
+
+```ts
+const selectionPlugin = new SelectionPoolPlugin(canvas, {
+  maxSelectCount: 2,
+  onSelectionChange: (selected) => {
+    if (selected.length === 2) {
+      connectionPlugin.clear();
+      connectionPlugin.connect(selected[0], selected[1]);
+    } else {
+      connectionPlugin.clear();
+    }
+  },
+});
+```
+
+---
+
+## 五、SelectionPoolPlugin — 选中池管理插件
+
+### 5.1 设计思路
+
+点击元素将其加入选中池，达到上限时自动淘汰最早选中的元素。完全接管 Fabric 原生选择机制。
+
+### 5.2 核心机制
+
+#### 池管理 FIFO
+
+```ts
+if (this.selectionPool.length >= this.options.maxSelectCount) {
+  const oldest = this.selectionPool[0];  // 淘汰最早
+  this.deselect(oldest);
+}
+this.select(target);
+```
+
+#### Fabric 事件接管
+
+```ts
+enable() {
+  this.canvas.selection = false;  // 禁用画布选择
+  this.canvas.getObjects().forEach(obj => obj.selectable = false);
+  this.canvas.on('mouse:down', this.handleClick);
+}
+
+disable() {
+  this.canvas.selection = true;
+  this.canvas.getObjects().forEach(obj => obj.selectable = true);
+  this.clearSelection();  // 清空池
+}
+```
+
+#### 特效应用
+
+选中时保存原始状态，应用高亮特效：
+
+```ts
+this.originalStates.set(obj, {
+  stroke: obj.stroke,
+  strokeWidth: obj.strokeWidth,
+  shadow: obj.shadow,
+});
+
+obj.set({
+  stroke: this.options.selectedStroke,
+  strokeWidth: this.options.selectedStrokeWidth,
+  shadow: new Shadow(this.options.selectedShadow),
+});
+```
+
+### 5.3 联动机制
+
+`onSelectionChange` 回调支持自定义联动逻辑：
+
+```ts
+const selectionPlugin = new SelectionPoolPlugin(canvas, {
+  onSelectionChange: (objects) => {
+    // objects 数组包含当前所有选中对象
+  },
+});
+```
+
+---
+
+### 6.1 业务对象过滤
+
+```ts
+function isBusinessObject(object): object is PluginCanvasObject {
+  return !data?.isGrid && !data?.isPlaceholder && !data?.isDimAnnotation && !data?.isConnection;
+}
+```
+
+通过 `data` 上的标记位区分对象类型，避免用 `instanceof` 或类名做类型判断，**使数据标记和业务逻辑解耦**。网格线、占位符、标注辅助对象、连接线都不参与插件逻辑。
+
+### 6.2 Layout 尺寸的三级降级策略
 
 ```ts
 function getLayoutWidth(object) {
@@ -265,19 +417,21 @@ function getLayoutWidth(object) {
 
 这个降级策略解决了**对象尚未首次渲染时无法获取边界框**的问题（Fabric 在首次 `renderAll` 前 `getBoundingRect()` 返回 0）。
 
-### 4.3 插件间互不干扰
+### 6.3 插件间互不干扰
 
 - DimensionPlugin 只读取对象位置，不做任何修改
 - SortableSnapPlugin 修改对象位置，但不依赖 DimensionPlugin 的输出
-- 两者通过 `canvas.on/off` 注册/注销各自的事件监听，开关互不影响
+- ConnectionPlugin 只在 overlay 绘制连接线，不修改对象
+- SelectionPoolPlugin 通过 `onSelectionChange` 回调触发联动，自己不直接操作连接
+- 四者通过 `canvas.on/off` 注册/注销各自的事件监听，开关互不影响
 
 ---
 
-## 五、面试表达要点
+## 七、面试表达要点
 
 ### 一句话概括
 
-> 在 Fabric.js 画布上实现了两个正交插件：一个用原生 Canvas API 做 zoom-aware 的尺寸标注 overlay，一个实现了类 Trello 的拖拽排序吸附交互。
+> 在 Fabric.js 画布上实现了四个正交插件：尺寸标注 overlay、拖拽排序吸附、贝塞尔曲线连接线、选中池管理。
 
 ### 可展开讲的亮点
 
@@ -286,3 +440,6 @@ function getLayoutWidth(object) {
 3. **动画竞态管理** — WeakMap + abort 模式避免动画叠加和内存泄漏
 4. **三级降级的尺寸获取** — 兼容未渲染对象、缩放对象、group 嵌套对象
 5. **居中布局 + 插入排序** — O(n) 时间完成实时布局重算，centerX 比较保证自然手感
+6. **最近锚点算法** — 欧几里得距离计算选择最优锚点，曲线更自然
+7. **无向连接规范化** — 按位置排序存储，A→B 和 B→A 等效
+8. **FIFO 淘汰策略** — 选中池满时自动淘汰最早元素
