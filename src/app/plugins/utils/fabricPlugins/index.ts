@@ -5,6 +5,7 @@ export type {
   ConnectionOptions,
   ConnectionPluginOptions,
   DimensionPluginOptions,
+  SelectionPoolPluginOptions,
   LayoutResult,
   LayoutSlot,
   PeerSlot,
@@ -32,6 +33,7 @@ export {
 export { DimensionPlugin } from "./dimensionPlugin";
 export { SortableSnapPlugin } from "./sortableSnapPlugin";
 export { ConnectionPlugin } from "./connectionPlugin";
+export { SelectionPoolPlugin } from "./selectionPoolPlugin";
 export {
   SCENE_ROWS,
   addGrid,
