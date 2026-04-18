@@ -1,6 +1,6 @@
 "use client";
 
-import type { Canvas, FabricObject, Shadow } from "fabric";
+import { type Canvas, type FabricObject, Shadow } from "fabric";
 import type { PluginCanvasObject, SelectionPoolPluginOptions } from "./types";
 
 const DEFAULT_OPTIONS: Required<SelectionPoolPluginOptions> = {
