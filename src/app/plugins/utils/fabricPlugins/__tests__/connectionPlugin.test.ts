@@ -108,7 +108,16 @@ describe("computeBezierPoints", () => {
     const tgt = { left: 0, top: 0, width: 100, height: 50 };
     const result = computeBezierPoints(src, tgt, 0.5);
 
-    expect(result.startX).toBe(200); // src 左边缘
-    expect(result.endX).toBe(100);    // tgt 右边缘
+    // src 在右，tgt 在左 → 源左边缘中点到目标右边缘中点
+    expect(result.startX).toBe(200);   // src 左边缘
+    expect(result.startY).toBe(25);    // src 高/2
+    expect(result.endX).toBe(100);     // tgt 右边缘
+    expect(result.endY).toBe(25);      // tgt 高/2
+
+    // curvature=0.5, distanceX=100, offset=50
+    expect(result.cp1x).toBe(250);    // startX + 50
+    expect(result.cp1y).toBe(25);       // startY
+    expect(result.cp2x).toBe(50);      // endX - 50
+    expect(result.cp2y).toBe(25);       // endY
   });
 });
