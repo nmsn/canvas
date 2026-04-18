@@ -188,5 +188,58 @@ export class ConnectionPlugin {
     };
   }
 
-  // API 方法见 Task 4
+  connect(
+    source: PluginCanvasObject,
+    target: PluginCanvasObject,
+    options?: ConnectionOptions,
+  ) {
+    // 禁止自连接
+    if (source === target) return;
+
+    // 检查是否已存在相同连接
+    const exists = this.connections.some(
+      (c) => c.from === source && c.to === target,
+    );
+    if (exists) return;
+
+    this.connections.push({ from: source, to: target, options });
+    if (this.enabled) {
+      this.canvas.requestRenderAll();
+    }
+  }
+
+  setConnections(connections: Array<{ from: PluginCanvasObject; to: PluginCanvasObject; options?: ConnectionOptions }>) {
+    this.connections = [];
+    for (const conn of connections) {
+      if (conn.from !== conn.to) {
+        this.connections.push(conn);
+      }
+    }
+    if (this.enabled) {
+      this.canvas.requestRenderAll();
+    }
+  }
+
+  disconnect(source: PluginCanvasObject, target: PluginCanvasObject) {
+    const index = this.connections.findIndex(
+      (c) => c.from === source && c.to === target,
+    );
+    if (index !== -1) {
+      this.connections.splice(index, 1);
+      if (this.enabled) {
+        this.canvas.requestRenderAll();
+      }
+    }
+  }
+
+  clear() {
+    this.connections = [];
+    if (this.enabled) {
+      this.canvas.requestRenderAll();
+    }
+  }
+
+  getConnections(): Connection[] {
+    return [...this.connections];
+  }
 }
