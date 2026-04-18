@@ -1,6 +1,9 @@
 "use client";
 
 export type {
+  Connection,
+  ConnectionOptions,
+  ConnectionPluginOptions,
   DimensionPluginOptions,
   LayoutResult,
   LayoutSlot,
@@ -28,6 +31,7 @@ export {
 
 export { DimensionPlugin } from "./dimensionPlugin";
 export { SortableSnapPlugin } from "./sortableSnapPlugin";
+export { ConnectionPlugin } from "./connectionPlugin";
 export {
   SCENE_ROWS,
   addGrid,
