@@ -97,6 +97,13 @@ describe("computeBezierPoints", () => {
     const tgt = { left: 200, top: 0, width: 100, height: 50 };
     const result = computeBezierPoints(src, tgt, 0);
 
+    // tgtCx > srcCx (200 > 50), 所以是源右到目标左
+    expect(result.startX).toBe(100);  // src 右边缘
+    expect(result.startY).toBe(25);   // src 高/2
+    expect(result.endX).toBe(200);   // tgt 左边缘
+    expect(result.endY).toBe(25);    // tgt 高/2
+
+    // curvature=0 时 control point 与端点重合
     expect(result.cp1x).toBe(result.startX);
     expect(result.cp2x).toBe(result.endX);
     expect(result.cp1y).toBe(result.startY);
