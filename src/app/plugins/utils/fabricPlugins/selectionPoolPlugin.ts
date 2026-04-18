@@ -128,4 +128,8 @@ export class SelectionPoolPlugin {
       this.select(target);
     }
   }
+
+  clearSelection() {
+    [...this.selectionPool].forEach((obj) => this.deselect(obj));
+  }
 }
