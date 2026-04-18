@@ -99,6 +99,8 @@ describe("computeBezierPoints", () => {
 
     expect(result.cp1x).toBe(result.startX);
     expect(result.cp2x).toBe(result.endX);
+    expect(result.cp1y).toBe(result.startY);
+    expect(result.cp2y).toBe(result.endY);
   });
 
   it("源右目标左时，方向反转", () => {
