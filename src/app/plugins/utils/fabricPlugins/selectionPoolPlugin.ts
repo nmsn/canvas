@@ -103,5 +103,29 @@ export class SelectionPoolPlugin {
     this.canvas.requestRenderAll();
   }
 
-  // select/deselect/clearSelection/onCanvasClick 实现见后续任务
+  private onCanvasClick(target?: PluginCanvasObject) {
+    if (!target || !this.enabled) return;
+
+    // 过滤非业务对象
+    const data = (target as PluginCanvasObject).data;
+    if (data?.isGrid || data?.isPlaceholder || data?.isDimAnnotation || data?.isConnection) {
+      return;
+    }
+
+    if (this.selectionPool.includes(target)) {
+      // 已在池中，取消选中
+      this.deselect(target);
+    } else {
+      // 不在池中
+      if (this.selectionPool.length >= this.options.maxSelectCount) {
+        // 池已满，淘汰第一个
+        const oldest = this.selectionPool[0];
+        if (oldest) {
+          this.deselect(oldest);
+        }
+      }
+      // 加入池
+      this.select(target);
+    }
+  }
 }
