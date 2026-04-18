@@ -126,29 +126,38 @@ export class ConnectionPlugin {
 
     let startX: number, startY: number, endX: number, endY: number;
 
-    // 选择锚点 - 根据相对位置选择边缘中点
+    // 源元素的 4 个锚点
+    const anchors = [
+      { name: 'top',    x: srcCx, y: fromBounds.top },
+      { name: 'bottom', x: srcCx, y: fromBounds.top + fromBounds.height },
+      { name: 'left',   x: fromBounds.left, y: srcCy },
+      { name: 'right',  x: fromBounds.left + fromBounds.width, y: srcCy },
+    ];
+
+    // 选择到目标中心最近的锚点作为起点
+    let bestAnchor = anchors[0]!;
+    let bestDistance = Infinity;
+    for (const anchor of anchors) {
+      const dist = Math.sqrt((anchor.x - tgtCx) ** 2 + (anchor.y - tgtCy) ** 2);
+      if (dist < bestDistance) {
+        bestDistance = dist;
+        bestAnchor = anchor;
+      }
+    }
+    startX = bestAnchor.x;
+    startY = bestAnchor.y;
+
+    // 目标锚点选择（保持相对位置逻辑）
     if (tgtCx > srcCx) {
-      // 源在左，目标在右 → 从源右边缘中点 到 目标左边缘中点
-      startX = fromBounds.left + fromBounds.width;
-      startY = fromBounds.top + fromBounds.height / 2;
       endX = toBounds.left;
       endY = toBounds.top + toBounds.height / 2;
     } else if (tgtCx < srcCx) {
-      // 源在右，目标在左
-      startX = fromBounds.left;
-      startY = fromBounds.top + fromBounds.height / 2;
       endX = toBounds.left + toBounds.width;
       endY = toBounds.top + toBounds.height / 2;
     } else if (tgtCy > srcCy) {
-      // 源在上，目标在下
-      startX = srcCx;
-      startY = fromBounds.top + fromBounds.height;
       endX = tgtCx;
       endY = toBounds.top;
     } else {
-      // 源在下，目标在上
-      startX = srcCx;
-      startY = fromBounds.top;
       endX = tgtCx;
       endY = toBounds.top + toBounds.height;
     }
