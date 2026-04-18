@@ -58,5 +58,50 @@ export class SelectionPoolPlugin {
     return [...this.selectionPool];
   }
 
+  select(obj: PluginCanvasObject) {
+    if (this.selectionPool.includes(obj)) return;
+
+    // 保存原始状态
+    this.originalStates.set(obj, {
+      stroke: obj.stroke,
+      strokeWidth: obj.strokeWidth,
+      shadow: obj.shadow,
+    });
+
+    // 应用选中特效
+    const shadow = new Shadow(this.options.selectedShadow);
+    obj.set({
+      stroke: this.options.selectedStroke,
+      strokeWidth: this.options.selectedStrokeWidth,
+      shadow,
+    });
+    obj.setCoords();
+
+    this.selectionPool.push(obj);
+    this.options.onSelectionChange?.(this.getSelectedObjects());
+    this.canvas.requestRenderAll();
+  }
+
+  deselect(obj: PluginCanvasObject) {
+    const index = this.selectionPool.indexOf(obj);
+    if (index === -1) return;
+
+    // 恢复原始状态
+    const original = this.originalStates.get(obj);
+    if (original) {
+      obj.set({
+        stroke: original.stroke,
+        strokeWidth: original.strokeWidth,
+        shadow: original.shadow,
+      });
+      obj.setCoords();
+      this.originalStates.delete(obj);
+    }
+
+    this.selectionPool.splice(index, 1);
+    this.options.onSelectionChange?.(this.getSelectedObjects());
+    this.canvas.requestRenderAll();
+  }
+
   // select/deselect/clearSelection/onCanvasClick 实现见后续任务
 }
