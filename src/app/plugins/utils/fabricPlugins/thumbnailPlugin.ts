@@ -81,7 +81,7 @@ export class ThumbnailPlugin {
   }
 
   private handleAfterRender = () => {
-    // Will be implemented in later tasks
+    this.syncObjects();
     this.syncViewport();
   };
 
@@ -128,6 +128,84 @@ export class ThumbnailPlugin {
   };
 
   private fitToContent(): void {
-    // Will be implemented in later tasks
+    if (!this.thumbnailCanvas) return;
+
+    const objects = this.thumbnailCanvas.getObjects();
+    if (objects.length === 0) {
+      this.thumbnailCanvas.setBackgroundColor(
+        this.options.backgroundColor,
+        () => this.thumbnailCanvas!.requestRenderAll()
+      );
+      return;
+    }
+
+    // Calculate bounding box of all objects
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity;
+    for (const obj of objects) {
+      const bounds = obj.getBoundingRect();
+      minX = Math.min(minX, bounds.left);
+      minY = Math.min(minY, bounds.top);
+      maxX = Math.max(maxX, bounds.left + bounds.width);
+      maxY = Math.max(maxY, bounds.top + bounds.height);
+    }
+
+    const contentWidth = maxX - minX;
+    const contentHeight = maxY - minY;
+    const canvasWidth = this.thumbnailCanvas.width || 1;
+    const canvasHeight = this.thumbnailCanvas.height || 1;
+
+    // Calculate scale ratio (with padding)
+    const padding = this.options.padding;
+    const availableWidth = canvasWidth - padding * 2;
+    const availableHeight = canvasHeight - padding * 2;
+    const scale = Math.min(
+      availableWidth / contentWidth,
+      availableHeight / contentHeight,
+      1
+    );
+
+    // Center content
+    const offsetX =
+      (canvasWidth - contentWidth * scale) / 2 - minX * scale;
+    const offsetY =
+      (canvasHeight - contentHeight * scale) / 2 - minY * scale;
+
+    this.thumbnailCanvas.setZoom(scale);
+    this.thumbnailCanvas.viewportTransform = [1, 0, 0, 1, offsetX, offsetY];
+    this.thumbnailCanvas.requestRenderAll();
+  }
+
+  private syncObjects(): void {
+    if (!this.thumbnailCanvas) return;
+
+    // 1. Clear thumbnail canvas
+    this.thumbnailCanvas.clear();
+
+    // 2. Iterate through main canvas objects, skip temporary objects
+    const objects = this.canvas
+      .getObjects()
+      .filter(
+        (obj: FabricObject) => !(obj as any).data?.isTemporary
+      );
+
+    // 3. Clone objects to thumbnail canvas
+    let completed = 0;
+    for (const obj of objects) {
+      obj.clone((cloned: FabricObject) => {
+        this.thumbnailCanvas!.add(cloned);
+        completed++;
+        if (completed === objects.length) {
+          this.fitToContent();
+        }
+      });
+    }
+
+    // If no objects, fitToContent anyway
+    if (objects.length === 0) {
+      this.fitToContent();
+    }
   }
 }

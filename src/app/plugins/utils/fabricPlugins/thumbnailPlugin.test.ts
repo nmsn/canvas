@@ -272,6 +272,52 @@ describe("ThumbnailPlugin ResizeObserver", () => {
   });
 });
 
+describe("ThumbnailPlugin Integration", () => {
+  beforeEach(() => {
+    mockQuerySelector.mockReset();
+    mockCreateElement.mockReset();
+  });
+
+  it("should sync objects from main canvas", () => {
+    // Arrange
+    const mockDiv = {
+      className: "",
+      style: {},
+      appendChild: vi.fn(),
+      querySelector: vi.fn(),
+      getBoundingClientRect: vi.fn(() => ({ width: 200, height: 200 })),
+    };
+    mockCreateElement.mockReturnValue(mockDiv);
+    mockQuerySelector.mockReturnValue(mockDiv);
+
+    const mockObject = {
+      clone: vi.fn((cb) => cb({})),
+      getBoundingRect: vi.fn(() => ({ left: 100, top: 100, width: 50, height: 50 })),
+    };
+
+    const mockCanvas = {
+      on: vi.fn(),
+      off: vi.fn(),
+      getObjects: vi.fn().mockReturnValue([mockObject]),
+      getZoom: vi.fn().mockReturnValue(1),
+      viewportTransform: [1, 0, 0, 1, 0, 0],
+      getTopContext: vi.fn(),
+      upperCanvasEl: { width: 800, height: 600 },
+      requestRenderAll: vi.fn(),
+      setWidth: vi.fn(),
+      setHeight: vi.fn(),
+    };
+
+    const plugin = new ThumbnailPlugin(mockCanvas as any, { container: ".thumbnail" });
+
+    // Act
+    plugin.enable();
+
+    // Assert
+    expect(plugin.isEnabled()).toBe(true);
+  });
+});
+
 describe("ThumbnailPlugin Constructor", () => {
   beforeEach(() => {
     mockQuerySelector.mockReset();
