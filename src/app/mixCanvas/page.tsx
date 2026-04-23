@@ -449,11 +449,10 @@ const FabricCalcPage: FC<PageProps> = () => {
               <h2 className="text-xl font-semibold text-gray-700">画布</h2>
               <button
                 onClick={toggleComposeMode}
-                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 ${
-                  isComposing
+                className={`rounded-md px-4 py-2 text-sm font-medium transition-colors duration-200 ${isComposing
                     ? "bg-purple-500 text-white hover:bg-purple-600"
                     : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                }`}
+                  }`}
               >
                 {isComposing ? "退出组合模式" : "进入组合模式"}
               </button>
@@ -504,11 +503,10 @@ const FabricCalcPage: FC<PageProps> = () => {
                   {snippets.map((snippet, index) => (
                     <div
                       key={snippet.id}
-                      className={`rounded-md border ${
-                        isComposing && selectedForCompose.includes(snippet.id)
+                      className={`rounded-md border ${isComposing && selectedForCompose.includes(snippet.id)
                           ? "border-purple-500 bg-purple-50"
                           : "border-gray-200 bg-gray-50"
-                      }`}
+                        }`}
                     >
                       {/* 头部：基本信息 */}
                       <div

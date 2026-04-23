@@ -124,67 +124,54 @@ export class ConnectionPlugin {
 
     const curvature = conn.options?.curvature ?? this.options.curvature;
 
-    let startX: number, startY: number, endX: number, endY: number;
-
-    // 源元素的 4 个锚点
-    const anchors = [
-      { name: 'top',    x: srcCx, y: fromBounds.top },
-      { name: 'bottom', x: srcCx, y: fromBounds.top + fromBounds.height },
-      { name: 'left',   x: fromBounds.left, y: srcCy },
-      { name: 'right',  x: fromBounds.left + fromBounds.width, y: srcCy },
+    // 源锚点：4 个锚点到目标中心的距离
+    const srcAnchors = [
+      { x: srcCx, y: fromBounds.top },
+      { x: srcCx, y: fromBounds.top + fromBounds.height },
+      { x: fromBounds.left, y: srcCy },
+      { x: fromBounds.left + fromBounds.width, y: srcCy },
     ];
 
-    // 选择到目标中心最近的锚点作为起点
-    let bestAnchor = anchors[0]!;
-    let bestDistance = Infinity;
-    for (const anchor of anchors) {
-      const dist = Math.sqrt((anchor.x - tgtCx) ** 2 + (anchor.y - tgtCy) ** 2);
-      if (dist < bestDistance) {
-        bestDistance = dist;
-        bestAnchor = anchor;
-      }
-    }
-    startX = bestAnchor.x;
-    startY = bestAnchor.y;
+    // 目标锚点：4 个锚点到源中心的距离
+    const tgtAnchors = [
+      { x: tgtCx, y: toBounds.top },
+      { x: tgtCx, y: toBounds.top + toBounds.height },
+      { x: toBounds.left, y: tgtCy },
+      { x: toBounds.left + toBounds.width, y: tgtCy },
+    ];
 
-    // 目标锚点选择（保持相对位置逻辑）
-    if (tgtCx > srcCx) {
-      endX = toBounds.left;
-      endY = toBounds.top + toBounds.height / 2;
-    } else if (tgtCx < srcCx) {
-      endX = toBounds.left + toBounds.width;
-      endY = toBounds.top + toBounds.height / 2;
-    } else if (tgtCy > srcCy) {
-      endX = tgtCx;
-      endY = toBounds.top;
-    } else {
-      endX = tgtCx;
-      endY = toBounds.top + toBounds.height;
-    }
+    // 选择距对方中心最近的锚点
+    const startAnchor = this.findNearestAnchor(srcAnchors, tgtCx, tgtCy);
+    const endAnchor = this.findNearestAnchor(tgtAnchors, srcCx, srcCy);
+
+    const startX = startAnchor.x;
+    const startY = startAnchor.y;
+    const endX = endAnchor.x;
+    const endY = endAnchor.y;
 
     // 计算控制点
     const distanceX = Math.abs(endX - startX);
-    const distanceY = Math.abs(endY - startY);
 
-    let cp1x: number, cp1y: number, cp2x: number, cp2y: number;
-
-    if (distanceX >= distanceY) {
-      // 水平关系为主 → S 弯
-      const offset = distanceX * curvature;
-      cp1x = startX + offset;
-      cp1y = startY;
-      cp2x = endX - offset;
-      cp2y = endY;
-    } else {
-      // 垂直关系为主 → C 弯
-      const offset = distanceY * curvature;
-      cp1x = startX;
-      cp1y = startY + offset;
-      cp2x = endX;
-      cp2y = endY - offset;
-    }
+    const offset = distanceX * curvature;
+    const cp1x = startX + offset;
+    const cp1y = startY;
+    const cp2x = endX - offset;
+    const cp2y = endY;
 
     return { startX, startY, endX, endY, cp1x, cp1y, cp2x, cp2y };
+  }
+
+  private findNearestAnchor(anchors: { x: number; y: number }[], targetCx: number, targetCy: number) {
+    let best = anchors[0]!;
+    let bestDist = Infinity;
+    for (const anchor of anchors) {
+      const dist = Math.hypot(anchor.x - targetCx, anchor.y - targetCy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = anchor;
+      }
+    }
+    return best;
   }
 
   private getSceneBounds(obj: PluginCanvasObject) {

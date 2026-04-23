@@ -252,25 +252,25 @@ row.objects.splice(insertIndex, 0, target);
 
 每个元素有 4 个锚点：上、下、左、右边缘的中点。
 
-连线时计算源元素 4 个锚点到目标中心的欧几里得距离，**选择最近者**作为起点：
+连线时计算源元素 4 个锚点到目标中心的欧几里得距离，**选择最近者**作为起点；同理计算目标元素 4 个锚点到源中心的距离，**选择最近者**作为终点。算法对称，保证最短路径：
 
 ```ts
-const anchors = [
-  { name: 'top',    x: srcCx, y: bounds.top },
-  { name: 'bottom', x: srcCx, y: bounds.top + bounds.height },
-  { name: 'left',   x: bounds.left, y: srcCy },
-  { name: 'right',  x: bounds.left + bounds.width, y: srcCy },
+const srcAnchors = [
+  { x: srcCx, y: bounds.top },
+  { x: srcCx, y: bounds.top + bounds.height },
+  { x: bounds.left, y: srcCy },
+  { x: bounds.left + bounds.width, y: srcCy },
 ];
 
-let bestAnchor = anchors[0];
-let bestDistance = Infinity;
-for (const anchor of anchors) {
-  const dist = Math.sqrt((anchor.x - tgtCx) ** 2 + (anchor.y - tgtCy) ** 2);
-  if (dist < bestDistance) {
-    bestDistance = dist;
-    bestAnchor = anchor;
-  }
-}
+const tgtAnchors = [
+  { x: tgtCx, y: toBounds.top },
+  { x: tgtCx, y: toBounds.top + toBounds.height },
+  { x: toBounds.left, y: tgtCy },
+  { x: toBounds.left + toBounds.width, y: tgtCy },
+];
+
+const startAnchor = this.findNearestAnchor(srcAnchors, tgtCx, tgtCy);
+const endAnchor = this.findNearestAnchor(tgtAnchors, srcCx, srcCy);
 ```
 
 #### 控制点计算
