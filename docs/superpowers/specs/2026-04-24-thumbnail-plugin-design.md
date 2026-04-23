@@ -28,9 +28,9 @@
                ▼
 ┌─────────────────────────────────────┐
 │     缩略图面板 (HTML Overlay)        │
-│  - 固定尺寸 160×120                 │
+│  - 尺寸由父容器决定                 │
 │  - 半透明背景 + 细边框              │
-│  - 固定在右下角                    │
+│  - 位置由父容器决定                │
 └─────────────────────────────────────┘
 ```
 
@@ -44,13 +44,76 @@
 
 ```typescript
 export interface ThumbnailPluginOptions {
-  container: HTMLElement;      // 必填：缩略图面板的父容器
+  // 容器：支持多种形式，兼容 React/Vue 等框架
+  // - CSS 选择器字符串：'.thumbnail-container'
+  // - HTMLElement：直接传入 DOM 元素
+  // - 函数：() => HTMLElement，返回当前容器（适合响应式框架，容器可能动态创建）
+  container: string | HTMLElement | (() => HTMLElement);
+
   position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right'; // 视口框对齐，默认 'bottom-right'
   backgroundColor?: string;    // 缩略图背景色，默认 'rgba(0,0,0,0.05)'
   viewportStroke?: string;     // 视口框边框色，默认 '#6366f1'
   viewportFill?: string;       // 视口框填充，默认 'rgba(99,102,241,0.1)'
   padding?: number;            // 缩略图画布内边距，默认 8
 }
+```
+
+### 容器解析
+
+```typescript
+private resolveContainer(): HTMLElement {
+  const { container } = this.options;
+
+  if (typeof container === 'string') {
+    const el = document.querySelector(container);
+    if (!el) throw new Error(`ThumbnailPlugin: container "${container}" not found`);
+    return el;
+  }
+
+  if (typeof container === 'function') {
+    return container();
+  }
+
+  // HTMLElement
+  return container;
+}
+```
+
+### React 使用示例
+
+```tsx
+// 方式 1: 使用 useRef
+const containerRef = useRef<HTMLDivElement>(null);
+useEffect(() => {
+  plugin.enable({ container: () => containerRef.current });
+}, []);
+
+// 方式 2: 使用回调 Ref
+let containerEl: HTMLDivElement;
+<div ref={el => containerEl = el} />
+useEffect(() => {
+  plugin.enable({ container: () => containerEl });
+}, []);
+```
+
+### Vue2 使用示例
+
+```html
+<template>
+  <div ref="thumbnailContainer"></div>
+</template>
+
+<script>
+export default {
+  methods: {
+    initPlugin() {
+      plugin.enable({
+        container: () => this.$refs.thumbnailContainer
+      });
+    }
+  }
+}
+</script>
 ```
 
 ### ThumbnailPlugin
@@ -71,6 +134,7 @@ export class ThumbnailPlugin {
   disable(): void;  // 销毁面板 + 停止同步
   isEnabled(): boolean;
 
+  private resolveContainer(): HTMLElement; // 解析容器（支持选择器、HTMLElement、函数）
   private syncObjects(): void;     // 同步对象到缩略图画布
   private syncViewport(): void;   // 同步视口框位置
   private fitToContent(): void;   // 计算缩放比例，使内容完整显示
@@ -157,8 +221,18 @@ private syncViewport(): void {
 ### 容器无效
 
 ```typescript
-if (!options.container || options.container.nodeType !== 1) {
-  throw new Error('ThumbnailPlugin: container must be a valid DOM element');
+// 字符串选择器未找到
+if (typeof container === 'string') {
+  const el = document.querySelector(container);
+  if (!el) throw new Error(`ThumbnailPlugin: container "${container}" not found`);
+}
+
+// 函数返回 null/undefined
+if (typeof container === 'function') {
+  const el = container();
+  if (!el || el.nodeType !== 1) {
+    throw new Error('ThumbnailPlugin: container function must return a valid DOM element');
+  }
 }
 ```
 
