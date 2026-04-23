@@ -94,6 +94,27 @@ export class ThumbnailPlugin {
     // Will be fully implemented in later tasks
   }
 
+  private constrainViewportRect(): void {
+    if (!this.viewportRect || !this.thumbnailCanvas) return;
+
+    const bounds = this.viewportRect.getBoundingRect();
+    const canvasWidth = this.thumbnailCanvas.width || 1;
+    const canvasHeight = this.thumbnailCanvas.height || 1;
+
+    let { left, top } = this.viewportRect as any;
+
+    // 左上角约束
+    left = Math.max(0, left);
+    top = Math.max(0, top);
+
+    // 右下角约束
+    left = Math.min(canvasWidth - bounds.width, left);
+    top = Math.min(canvasHeight - bounds.height, top);
+
+    this.viewportRect.set({ left, top });
+    this.viewportRect.setCoords();
+  }
+
   private handleResize = (): void => {
     if (!this.container) return;
     const { width, height } = this.container.getBoundingClientRect();

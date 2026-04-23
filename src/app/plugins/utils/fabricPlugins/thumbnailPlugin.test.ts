@@ -172,6 +172,68 @@ describe("ThumbnailPlugin syncViewport", () => {
   });
 });
 
+describe("ThumbnailPlugin viewport bounds constraint", () => {
+  beforeEach(() => {
+    mockQuerySelector.mockReset();
+    mockCreateElement.mockReset();
+  });
+
+  it("should constrain viewport rect within canvas bounds", () => {
+    // Arrange
+    const mockDiv = { className: "", style: {}, appendChild: vi.fn(), querySelector: vi.fn() };
+    mockCreateElement.mockReturnValue(mockDiv);
+    mockQuerySelector.mockReturnValue(mockDiv);
+
+    // Mock viewportRect with out-of-bounds position (-100, -100)
+    const mockViewportRect = {
+      set: vi.fn(),
+      setCoords: vi.fn(),
+      getBoundingRect: vi.fn(() => ({ width: 50, height: 50 })),
+      left: -100,
+      top: -100,
+    };
+
+    const mockThumbnailCanvas = {
+      setWidth: vi.fn(),
+      setHeight: vi.fn(),
+      width: 100,
+      height: 100,
+      add: vi.fn(),
+      remove: vi.fn(),
+      renderAll: vi.fn(),
+      requestRenderAll: vi.fn(),
+    };
+
+    const mockCanvas = {
+      on: vi.fn(),
+      off: vi.fn(),
+      getObjects: vi.fn().mockReturnValue([]),
+      getZoom: vi.fn().mockReturnValue(1),
+      viewportTransform: [1, 0, 0, 1, 0, 0],
+      getTopContext: vi.fn(),
+      upperCanvasEl: { width: 0, height: 0 },
+      requestRenderAll: vi.fn(),
+      setWidth: vi.fn(),
+      setHeight: vi.fn(),
+    };
+
+    const plugin = new ThumbnailPlugin(mockCanvas as any, { container: ".thumbnail" });
+
+    // Manually set internal state to simulate a viewport rect that is out of bounds
+    (plugin as any).thumbnailCanvas = mockThumbnailCanvas;
+    (plugin as any).viewportRect = mockViewportRect;
+
+    // Act - call constrainViewportRect directly
+    (plugin as any).constrainViewportRect();
+
+    // Assert - set should have been called with constrained values (0, 0) not (-100, -100)
+    expect(mockViewportRect.set).toHaveBeenCalled();
+    const setCall = mockViewportRect.set.mock.calls[0][0];
+    expect(setCall.left).toBe(0);
+    expect(setCall.top).toBe(0);
+  });
+});
+
 describe("ThumbnailPlugin ResizeObserver", () => {
   beforeEach(() => {
     mockQuerySelector.mockReset();
