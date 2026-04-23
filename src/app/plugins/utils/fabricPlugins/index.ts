@@ -44,3 +44,6 @@ export {
   getLabel,
   getPalette,
 } from "./canvasHelpers";
+
+export { ThumbnailPlugin } from "./thumbnailPlugin";
+export type { ThumbnailPluginOptions } from "./types";
