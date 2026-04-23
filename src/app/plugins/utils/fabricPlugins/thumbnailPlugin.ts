@@ -49,14 +49,34 @@ export class ThumbnailPlugin {
   enable(): void {
     if (this.enabled) return;
     this.enabled = true;
+    // Register canvas event listeners
+    this.canvas.on("after:render", this.handleAfterRender);
+    this.canvas.on("viewport:transformed", this.handleViewportTransform);
   }
 
   disable(): void {
     if (!this.enabled) return;
     this.enabled = false;
+    // Unregister canvas event listeners
+    this.canvas.off("after:render", this.handleAfterRender);
+    this.canvas.off("viewport:transformed", this.handleViewportTransform);
   }
 
   isEnabled(): boolean {
     return this.enabled;
+  }
+
+  private handleAfterRender = () => {
+    // Will be implemented in later tasks
+    this.syncViewport();
+  };
+
+  private handleViewportTransform = () => {
+    // Will be implemented in later tasks
+    this.syncViewport();
+  };
+
+  private syncViewport(): void {
+    // Will be fully implemented in later tasks
   }
 }

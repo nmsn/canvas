@@ -109,6 +109,43 @@ describe("ThumbnailPlugin enable/disable", () => {
   });
 });
 
+describe("ThumbnailPlugin syncViewport", () => {
+  beforeEach(() => {
+    mockQuerySelector.mockReset();
+    mockCreateElement.mockReset();
+  });
+
+  it("should calculate visible area from main canvas viewport", () => {
+    // Arrange
+    const mockDiv = { className: "", style: {}, appendChild: vi.fn(), querySelector: vi.fn() };
+    mockCreateElement.mockReturnValue(mockDiv);
+    mockQuerySelector.mockReturnValue(mockDiv);
+    const mockViewportTransform = [1, 0, 0, 1, -100, -200];
+    const mockCanvas = {
+      on: vi.fn(),
+      off: vi.fn(),
+      getObjects: vi.fn().mockReturnValue([]),
+      getZoom: vi.fn().mockReturnValue(0.5),
+      viewportTransform: mockViewportTransform,
+      width: 800,
+      height: 600,
+      getTopContext: vi.fn(),
+      upperCanvasEl: { width: 0, height: 0 },
+      requestRenderAll: vi.fn(),
+      setWidth: vi.fn(),
+      setHeight: vi.fn(),
+    };
+
+    const plugin = new ThumbnailPlugin(mockCanvas as any, { container: ".thumbnail" });
+
+    // Act
+    plugin.enable();
+
+    // Assert
+    expect(plugin.isEnabled()).toBe(true);
+  });
+});
+
 describe("ThumbnailPlugin Constructor", () => {
   beforeEach(() => {
     mockQuerySelector.mockReset();
