@@ -1,6 +1,6 @@
 "use client";
 
-import type { Canvas, FabricObject } from "fabric";
+import { Canvas, type FabricObject } from "fabric";
 import type { ThumbnailPluginOptions } from "./types";
 
 const DEFAULT_OPTIONS = {
@@ -49,6 +49,15 @@ export class ThumbnailPlugin {
   enable(): void {
     if (this.enabled) return;
     this.enabled = true;
+
+    // Create thumbnail canvas
+    this.container = this.resolveContainer();
+    this.thumbnailCanvas = new Canvas(this.container.appendChild(document.createElement('canvas')) as HTMLCanvasElement);
+
+    // Setup ResizeObserver
+    this.resizeObserver = new ResizeObserver(this.handleResize);
+    this.resizeObserver.observe(this.container);
+
     // Register canvas event listeners
     this.canvas.on("after:render", this.handleAfterRender);
     this.canvas.on("viewport:transformed", this.handleViewportTransform);
@@ -57,6 +66,11 @@ export class ThumbnailPlugin {
   disable(): void {
     if (!this.enabled) return;
     this.enabled = false;
+
+    // Cleanup ResizeObserver
+    this.resizeObserver?.disconnect();
+    this.resizeObserver = null;
+
     // Unregister canvas event listeners
     this.canvas.off("after:render", this.handleAfterRender);
     this.canvas.off("viewport:transformed", this.handleViewportTransform);
@@ -78,5 +92,21 @@ export class ThumbnailPlugin {
 
   private syncViewport(): void {
     // Will be fully implemented in later tasks
+  }
+
+  private handleResize = (): void => {
+    if (!this.container) return;
+    const { width, height } = this.container.getBoundingClientRect();
+
+    if (width === 0 || height === 0) return; // 跳过不可见状态
+
+    this.thumbnailCanvas?.setWidth(width);
+    this.thumbnailCanvas?.setHeight(height);
+    this.fitToContent();
+    this.syncViewport();
+  };
+
+  private fitToContent(): void {
+    // Will be implemented in later tasks
   }
 }

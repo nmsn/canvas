@@ -1,10 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ThumbnailPlugin } from "./thumbnailPlugin";
+
+// Mock fabric BEFORE importing ThumbnailPlugin
+vi.mock("fabric", () => {
+  function MockCanvas() {
+    return {
+      setWidth: vi.fn(),
+      setHeight: vi.fn(),
+      on: vi.fn(),
+      off: vi.fn(),
+    };
+  }
+  return {
+    Canvas: MockCanvas,
+    default: { Canvas: MockCanvas },
+    FabricObject: vi.fn(),
+  };
+});
 
 // Mock document for node environment
 const mockQuerySelector = vi.fn();
 const mockCreateElement = vi.fn(() => {
-  const div = { className: "", style: {}, appendChild: vi.fn(), querySelector: vi.fn() };
+  const div = { className: "", style: {}, appendChild: vi.fn(), querySelector: vi.fn(), getBoundingClientRect: vi.fn(() => ({ width: 100, height: 100 })) };
   return div;
 });
 const mockDocument = {
@@ -12,6 +28,16 @@ const mockDocument = {
   createElement: mockCreateElement,
 };
 Object.defineProperty(global, "document", { value: mockDocument, writable: true });
+
+// Mock ResizeObserver
+class MockResizeObserver {
+  observe = vi.fn();
+  disconnect = vi.fn();
+}
+Object.defineProperty(global, "ResizeObserver", { value: MockResizeObserver, writable: true });
+
+// Import after mocks
+import { ThumbnailPlugin } from "./thumbnailPlugin";
 
 describe("ThumbnailPlugin enable/disable", () => {
   beforeEach(() => {
@@ -142,6 +168,44 @@ describe("ThumbnailPlugin syncViewport", () => {
     plugin.enable();
 
     // Assert
+    expect(plugin.isEnabled()).toBe(true);
+  });
+});
+
+describe("ThumbnailPlugin ResizeObserver", () => {
+  beforeEach(() => {
+    mockQuerySelector.mockReset();
+    mockCreateElement.mockReset();
+  });
+
+  it("should handle resize when container size is 0", () => {
+    // Arrange - simulate 0x0 container (invisible state)
+    const mockDiv = {
+      className: "",
+      style: {},
+      appendChild: vi.fn(),
+      querySelector: vi.fn(),
+      getBoundingClientRect: vi.fn(() => ({ width: 0, height: 0 })),
+    };
+    mockCreateElement.mockReturnValue(mockDiv);
+    mockQuerySelector.mockReturnValue(mockDiv);
+    const mockCanvas = {
+      on: vi.fn(),
+      off: vi.fn(),
+      getObjects: vi.fn().mockReturnValue([]),
+      getZoom: vi.fn().mockReturnValue(1),
+      viewportTransform: [1, 0, 0, 1, 0, 0],
+      getTopContext: vi.fn(),
+      upperCanvasEl: { width: 0, height: 0 },
+      requestRenderAll: vi.fn(),
+      setWidth: vi.fn(),
+      setHeight: vi.fn(),
+    };
+
+    const plugin = new ThumbnailPlugin(mockCanvas as any, { container: ".thumbnail" });
+
+    // Act & Assert - should not crash when container is 0x0 (invisible)
+    plugin.enable();
     expect(plugin.isEnabled()).toBe(true);
   });
 });
