@@ -1,6 +1,6 @@
 "use client";
 
-import { Canvas, type FabricObject } from "fabric";
+import { Canvas, type FabricObject, util } from "fabric";
 import type { ThumbnailPluginOptions } from "./types";
 
 const DEFAULT_OPTIONS = {
@@ -30,7 +30,7 @@ export class ThumbnailPlugin {
     const { container } = this.options;
 
     if (typeof container === "string") {
-      const el = document.querySelector(container);
+      const el = document.querySelector(container) as HTMLElement | null;
       if (!el) throw new Error(`ThumbnailPlugin: container "${container}" not found`);
       return el;
     }
@@ -52,7 +52,9 @@ export class ThumbnailPlugin {
 
     // Create thumbnail canvas
     this.container = this.resolveContainer();
-    this.thumbnailCanvas = new Canvas(this.container.appendChild(document.createElement('canvas')) as HTMLCanvasElement);
+    const canvasEl = document.createElement('canvas') as HTMLCanvasElement;
+    this.container.appendChild(canvasEl);
+    this.thumbnailCanvas = new Canvas(canvasEl);
 
     // Setup ResizeObserver
     this.resizeObserver = new ResizeObserver(this.handleResize);
@@ -60,7 +62,6 @@ export class ThumbnailPlugin {
 
     // Register canvas event listeners
     this.canvas.on("after:render", this.handleAfterRender);
-    this.canvas.on("viewport:transformed", this.handleViewportTransform);
   }
 
   disable(): void {
@@ -73,7 +74,6 @@ export class ThumbnailPlugin {
 
     // Unregister canvas event listeners
     this.canvas.off("after:render", this.handleAfterRender);
-    this.canvas.off("viewport:transformed", this.handleViewportTransform);
   }
 
   isEnabled(): boolean {
@@ -121,8 +121,9 @@ export class ThumbnailPlugin {
 
     if (width === 0 || height === 0) return; // 跳过不可见状态
 
-    this.thumbnailCanvas?.setWidth(width);
-    this.thumbnailCanvas?.setHeight(height);
+    if (this.thumbnailCanvas) {
+      this.thumbnailCanvas.setDimensions({ width, height });
+    }
     this.fitToContent();
     this.syncViewport();
   };
@@ -132,10 +133,8 @@ export class ThumbnailPlugin {
 
     const objects = this.thumbnailCanvas.getObjects();
     if (objects.length === 0) {
-      this.thumbnailCanvas.setBackgroundColor(
-        this.options.backgroundColor,
-        () => this.thumbnailCanvas!.requestRenderAll()
-      );
+      this.thumbnailCanvas.backgroundColor = this.options.backgroundColor;
+      this.thumbnailCanvas.requestRenderAll();
       return;
     }
 
@@ -192,16 +191,17 @@ export class ThumbnailPlugin {
       );
 
     // 3. Clone objects to thumbnail canvas
-    let completed = 0;
-    for (const obj of objects) {
-      obj.clone((cloned: FabricObject) => {
-        this.thumbnailCanvas!.add(cloned);
-        completed++;
-        if (completed === objects.length) {
-          this.fitToContent();
-        }
-      });
-    }
+    const clonePromises = objects.map(
+      (obj) =>
+        new Promise<FabricObject>((resolve) => {
+          (obj as any).clone((cloned: FabricObject) => resolve(cloned));
+        })
+    );
+
+    Promise.all(clonePromises).then((clonedObjects) => {
+      clonedObjects.forEach((cloned) => this.thumbnailCanvas!.add(cloned));
+      this.fitToContent();
+    });
 
     // If no objects, fitToContent anyway
     if (objects.length === 0) {

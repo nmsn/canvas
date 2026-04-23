@@ -3,13 +3,12 @@
 import { type Canvas, type FabricObject, Shadow } from "fabric";
 import type { PluginCanvasObject, SelectionPoolPluginOptions } from "./types";
 
-const DEFAULT_OPTIONS: Required<SelectionPoolPluginOptions> = {
+const DEFAULT_OPTIONS = {
   maxSelectCount: 2,
   selectedStroke: "#6366f1",
   selectedStrokeWidth: 2,
   selectedShadow: "0 0 8px rgba(99,102,241,0.6)",
-  onSelectionChange: undefined,
-};
+} as const;
 
 export class SelectionPoolPlugin {
   private readonly canvas: Canvas;
@@ -17,16 +16,22 @@ export class SelectionPoolPlugin {
   private enabled = false;
   private selectionPool: PluginCanvasObject[] = [];
   private originalStates = new Map<PluginCanvasObject, {
-    stroke?: string | number;
+    stroke?: string | number | object | null;
     strokeWidth?: number;
-    shadow?: Shadow | string | null;
+    shadow?: Shadow | string | null | undefined;
   }>();
   private readonly handleClick = (event: { target?: FabricObject }) =>
     this.onCanvasClick(event.target as PluginCanvasObject | undefined);
 
   constructor(canvas: Canvas, options: SelectionPoolPluginOptions = {}) {
     this.canvas = canvas;
-    this.options = { ...DEFAULT_OPTIONS, ...options };
+    this.options = {
+      maxSelectCount: options.maxSelectCount ?? DEFAULT_OPTIONS.maxSelectCount,
+      selectedStroke: options.selectedStroke ?? DEFAULT_OPTIONS.selectedStroke,
+      selectedStrokeWidth: options.selectedStrokeWidth ?? DEFAULT_OPTIONS.selectedStrokeWidth,
+      selectedShadow: options.selectedShadow ?? DEFAULT_OPTIONS.selectedShadow,
+      onSelectionChange: options.onSelectionChange ?? (() => {}),
+    };
   }
 
   enable() {
