@@ -18,6 +18,8 @@ export class HistoryPlugin {
   private dragStartStates = new Map<string, Record<string, unknown>>();
   // Store states for redo of modify operations (object state BEFORE undo)
   private redoStates = new Map<string, Record<string, unknown>>();
+  // Flag to prevent recording during undo/redo operations
+  private isUndoingOrRedoing = false;
 
   constructor(canvas: Canvas, options: HistoryPluginOptions = {}) {
     this.canvas = canvas;
@@ -54,7 +56,9 @@ export class HistoryPlugin {
   }
 
   undo() {
-    if (!this.canUndo()) return;
+    if (!this.canUndo() || this.isUndoingOrRedoing) return;
+    this.isUndoingOrRedoing = true;
+
     const node = this.nodes[this.currentIndex];
     this.currentIndex--;
 
@@ -86,11 +90,14 @@ export class HistoryPlugin {
         break;
     }
 
+    this.isUndoingOrRedoing = false;
     this.options.onChange?.(this.canUndo(), this.canRedo());
   }
 
   redo() {
-    if (!this.canRedo()) return;
+    if (!this.canRedo() || this.isUndoingOrRedoing) return;
+    this.isUndoingOrRedoing = true;
+
     this.currentIndex++;
     const node = this.nodes[this.currentIndex];
 
@@ -121,6 +128,7 @@ export class HistoryPlugin {
         break;
     }
 
+    this.isUndoingOrRedoing = false;
     this.options.onChange?.(this.canUndo(), this.canRedo());
   }
 
@@ -182,19 +190,19 @@ export class HistoryPlugin {
   }
 
   private handleObjectAdded = (event: { target?: FabricObject }) => {
-    if (!event.target) return;
+    if (!event.target || this.isUndoingOrRedoing) return;
     const node = this.createNode("add", event.target);
     this.pushNode(node);
   };
 
   private handleObjectRemoved = (event: { target?: FabricObject }) => {
-    if (!event.target) return;
+    if (!event.target || this.isUndoingOrRedoing) return;
     const node = this.createNode("remove", event.target);
     this.pushNode(node);
   };
 
   private handleObjectMoving = (event: { target?: FabricObject }) => {
-    if (!event.target || !this.enabled) return;
+    if (!event.target || !this.enabled || this.isUndoingOrRedoing) return;
     const obj = event.target;
     const objectId = this.getObjectId(obj);
 
@@ -204,7 +212,7 @@ export class HistoryPlugin {
   };
 
   private handleObjectModified = (event: { target?: FabricObject }) => {
-    if (!event.target || !this.enabled) return;
+    if (!event.target || !this.enabled || this.isUndoingOrRedoing) return;
     const obj = event.target;
     const objectId = this.getObjectId(obj);
 
