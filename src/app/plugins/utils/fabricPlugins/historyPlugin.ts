@@ -78,7 +78,9 @@ export class HistoryPlugin {
         if (node.objectState) {
           // Use canvas.add to re-add the object
           // For Fabric.js, we pass the serialized state and it creates a new object
-          this.canvas.add(node.objectState as unknown as FabricObject);
+          const obj = node.objectState as unknown as FabricObject;
+          this.canvas.add(obj);
+          obj.setCoords();
           this.canvas.requestRenderAll();
         }
         break;
@@ -109,8 +111,9 @@ export class HistoryPlugin {
     switch (node.type) {
       case "add":
         // Redo add = add the object back
-        if (!targetObj) {
+        if (!targetObj && node.objectState) {
           this.canvas.add(node.objectState as unknown as FabricObject);
+          this.canvas.requestRenderAll();
         }
         break;
       case "remove":
