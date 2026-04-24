@@ -1,6 +1,6 @@
 # Fabric.js 插件系统 — 项目重难点总结
 
-> 基于 Fabric.js 画布引擎实现的四个核心插件：**DimensionPlugin（尺寸标注）**、**SortableSnapPlugin（拖拽排序吸附）**、**ConnectionPlugin（贝塞尔连线）**、**SelectionPoolPlugin（选中池管理）**。
+> 基于 Fabric.js 画布引擎实现的六个核心插件：**DimensionPlugin（尺寸标注）**、**SortableSnapPlugin（拖拽排序吸附）**、**ConnectionPlugin（贝塞尔连线）**、**SelectionPoolPlugin（选中池管理）**、**HistoryPlugin（历史记录）**、**ThumbnailPlugin（缩略图预览）**。
 
 ---
 
@@ -8,10 +8,14 @@
 
 ### 1.1 插件化架构思路
 
-两个插件共享同一套 `Canvas` 实例，但职责完全正交：
+六个插件共享同一套 `Canvas` 实例，职责完全正交：
 
 - **DimensionPlugin** — 纯视觉层，不修改画布对象，只在 `upperCanvas` 上做 overlay 绘制
 - **SortableSnapPlugin** — 交互层，接管拖拽事件流，控制对象的位置和排列
+- **ConnectionPlugin** — 连接层，在两个对象间绘制贝塞尔曲线连接线
+- **SelectionPoolPlugin** — 选择管理层，完全接管 Fabric 原生选择机制
+- **HistoryPlugin** — 历史管理层，记录所有操作，支持撤销/重做
+- **ThumbnailPlugin** — 预览层，在独立面板渲染缩略图
 
 采用 **统一的生命周期接口**（`enable / disable / isEnabled`），使插件可独立开关、互不干扰。
 
@@ -388,6 +392,8 @@ const selectionPlugin = new SelectionPoolPlugin(canvas, {
 
 ---
 
+## 六、通用设计模式
+
 ### 6.1 业务对象过滤
 
 ```ts
@@ -427,11 +433,138 @@ function getLayoutWidth(object) {
 
 ---
 
-## 七、面试表达要点
+## 七、HistoryPlugin — 历史记录插件
+
+### 7.1 设计思路
+
+记录画布上的所有操作（添加、删除、修改），支持撤销（Undo）和重做（Redo）。采用命令模式，将每次操作封装为独立的 HistoryNode。
+
+### 7.2 核心机制
+
+#### 节点类型
+
+```ts
+type HistoryNode = {
+  id: string;           // 唯一标识
+  timestamp: number;     // 时间戳
+  type: "add" | "remove" | "modify";  // 操作类型
+  objectId: string;      // 对象ID
+  objectState: Record<string, unknown>;  // 对象状态
+};
+```
+
+#### 三种操作的处理
+
+| 操作 | Undo | Redo |
+|------|------|------|
+| add | 移除对象 | 重新添加对象 |
+| remove | 重新添加对象 | 移除对象 |
+| modify | 恢复原始状态 | 恢复修改后状态 |
+
+#### 安全的状态提取
+
+fabric.js 的 `Group.toObject()` 方法内部调用 `this.layoutManager.toObject()`，但某些操作后 `layoutManager` 会损坏导致抛出异常。解决方案是**手动提取必要的变换属性**：
+
+```ts
+const safeState = {
+  left: obj.left,
+  top: obj.top,
+  scaleX: obj.scaleX,
+  scaleY: obj.scaleY,
+  angle: obj.angle,
+  flipX: obj.flipX,
+  flipY: obj.flipY,
+};
+```
+
+只保存位置相关的最小属性，避免依赖可能损坏的 `toObject()` 方法。
+
+#### Undo/Redo 保护
+
+通过 `isUndoingOrRedoing` 标志防止 undo/redo 操作本身被记录为新历史，避免操作嵌套。
+
+### 7.3 禁用时的状态清空
+
+```ts
+disable() {
+  this.enabled = false;
+  this.canvas.off(...);
+  this.dragStartStates.clear();
+  this.nodes = [];
+  this.currentIndex = -1;
+  this.redoStates.clear();
+  this.onChange?.(false, false);
+}
+```
+
+关闭时清空所有状态，确保再次开启时从干净状态开始。
+
+### 7.4 与 SortableSnapPlugin 的冲突
+
+拖拽过程中：
+1. `object:moving` → 保存初始状态到 `dragStartStates`
+2. `object:modified` → 创建 modify 节点，清空 `dragStartStates`
+
+SortableSnapPlugin 在拖拽时会触发多次 `object:moving`，需要 `dragStartStates.has()` 判断防止重复保存。
+
+---
+
+## 八、ThumbnailPlugin — 缩略图预览插件
+
+### 8.1 设计思路
+
+在独立面板中渲染画布内容的缩略图，视口框跟随主画布同步更新。用于在大画布场景下快速定位当前视口位置。
+
+### 8.2 核心机制
+
+#### 渲染方式
+
+使用 `canvas.toCanvasElement()` 将主画布内容渲染到缩略图 canvas：
+
+```ts
+const thumbCanvas = this.canvas.toCanvasElement({
+  width: THUMBNAIL_WIDTH,
+  height: (CANVAS_HEIGHT / CANVAS_WIDTH) * THUMBNAIL_WIDTH,
+});
+container.innerHTML = "";
+container.appendChild(thumbCanvas);
+```
+
+#### 视口框同步
+
+主画布缩放/平移时，缩略图上需要绘制当前视口框：
+
+```ts
+const viewportRect = document.createElement("div");
+viewportRect.style.position = "absolute";
+viewportRect.style.border = "2px solid #2563eb";
+viewportRect.style.backgroundColor = "rgba(37, 99, 235, 0.1)";
+viewportRect.style.pointerEvents = "none";
+
+// 根据 zoom 和 viewportTransform 计算视口框位置和大小
+const scale = CANVAS_WIDTH / THUMBNAIL_WIDTH / zoom;
+viewportRect.style.left = `${-viewportTransform[4] / scale}px`;
+viewportRect.style.top = `${-viewportTransform[5] / scale}px`;
+viewportRect.style.width = `${CANVAS_WIDTH / scale}px`;
+viewportRect.style.height = `${CANVAS_HEIGHT / scale}px`;
+```
+
+#### 事件监听
+
+```ts
+this.canvas.on("after:render", this.updateViewport);
+this.canvas.on("viewport:transformed", this.updateViewport);
+```
+
+`after:render` 保证每次重绘后缩略图同步更新；`viewport:transformed` 在缩放/平移时及时响应。
+
+---
+
+## 九、面试表达要点
 
 ### 一句话概括
 
-> 在 Fabric.js 画布上实现了四个正交插件：尺寸标注 overlay、拖拽排序吸附、贝塞尔曲线连接线、选中池管理。
+> 在 Fabric.js 画布上实现了六个正交插件：尺寸标注 overlay、拖拽排序吸附、贝塞尔曲线连接线、选中池管理、历史记录管理、缩略图预览。
 
 ### 可展开讲的亮点
 
@@ -443,3 +576,5 @@ function getLayoutWidth(object) {
 6. **最近锚点算法** — 欧几里得距离计算选择最优锚点，曲线更自然
 7. **无向连接规范化** — 按位置排序存储，A→B 和 B→A 等效
 8. **FIFO 淘汰策略** — 选中池满时自动淘汰最早元素
+9. **安全的状态提取** — 手动提取变换属性而非依赖可能损坏的 toObject()，保证历史记录的可靠性
+10. **禁用时状态清空** — 插件关闭时清理所有历史状态，确保再次开启时行为一致

@@ -49,6 +49,10 @@ export class HistoryPlugin {
     this.canvas.off("object:moving", this.handleObjectMoving);
     this.canvas.off("object:modified", this.handleObjectModified);
     this.dragStartStates.clear();
+    this.nodes = [];
+    this.currentIndex = -1;
+    this.redoStates.clear();
+    this.options.onChange?.(this.canUndo(), this.canRedo());
   }
 
   isEnabled() {
@@ -82,12 +86,24 @@ export class HistoryPlugin {
         }
         break;
       case "modify":
-        if (targetObj && typeof targetObj.toObject === "function") {
-          // Store current state for redo before restoring original
-          this.redoStates.set(node.objectId, targetObj.toObject());
-          targetObj.set(node.objectState);
-          targetObj.setCoords();
-          this.canvas.requestRenderAll();
+        if (targetObj) {
+          // Save current state for redo using safe property extraction
+          const currentState: Record<string, unknown> = {
+            left: targetObj.left,
+            top: targetObj.top,
+            scaleX: targetObj.scaleX,
+            scaleY: targetObj.scaleY,
+            angle: targetObj.angle,
+          };
+          this.redoStates.set(node.objectId, currentState);
+          // Restore original state
+          try {
+            targetObj.set(node.objectState);
+            targetObj.setCoords();
+            this.canvas.requestRenderAll();
+          } catch {
+            // Ignore error when restoring state
+          }
         }
         break;
     }
@@ -121,10 +137,15 @@ export class HistoryPlugin {
       case "modify":
         if (targetObj && typeof targetObj.set === "function") {
           const redoState = this.redoStates.get(node.objectId);
-          if (redoState) {
-            targetObj.set(redoState);
-            targetObj.setCoords();
-            this.canvas.requestRenderAll();
+          const stateToRestore = redoState ?? node.objectState;
+          if (stateToRestore) {
+            try {
+              targetObj.set(stateToRestore);
+              targetObj.setCoords();
+              this.canvas.requestRenderAll();
+            } catch {
+              // Ignore error when restoring redo state
+            }
           }
         }
         break;
@@ -159,13 +180,24 @@ export class HistoryPlugin {
   }
 
   private createNode(type: HistoryNode["type"], obj: FabricObject): HistoryNode {
-    const objectId = (obj.data as Record<string, unknown>)?.id as string ?? String(obj.data?.id) ?? `obj_${Date.now()}`;
+    const objectId = this.getObjectId(obj);
+    // Use safe method to get object state - only essential transform properties
+    const objectState: Record<string, unknown> = {
+      id: objectId,
+      left: obj.left,
+      top: obj.top,
+      scaleX: obj.scaleX,
+      scaleY: obj.scaleY,
+      angle: obj.angle,
+      flipX: obj.flipX,
+      flipY: obj.flipY,
+    };
     return {
       id: `${objectId}_${Date.now()}`,
       timestamp: Date.now(),
       type,
       objectId,
-      objectState: obj.toObject(),
+      objectState,
     };
   }
 
@@ -188,7 +220,11 @@ export class HistoryPlugin {
   }
 
   private getObjectId(obj: FabricObject): string {
-    return (obj.data as Record<string, unknown>)?.id as string ?? String(obj.data?.id) ?? `obj_${Date.now()}`;
+    const data = obj.data as Record<string, unknown> | undefined;
+    if (data?.id && typeof data.id === "string") {
+      return data.id as string;
+    }
+    return `obj_${Date.now()}`;
   }
 
   private handleObjectAdded = (event: { target?: FabricObject }) => {
@@ -209,7 +245,18 @@ export class HistoryPlugin {
     const objectId = this.getObjectId(obj);
 
     if (!this.dragStartStates.has(objectId)) {
-      this.dragStartStates.set(objectId, obj.toObject());
+      // Use safe method to get object state - only essential transform properties
+      const safeState: Record<string, unknown> = {
+        id: objectId,
+        left: obj.left,
+        top: obj.top,
+        scaleX: obj.scaleX,
+        scaleY: obj.scaleY,
+        angle: obj.angle,
+        flipX: obj.flipX,
+        flipY: obj.flipY,
+      };
+      this.dragStartStates.set(objectId, safeState);
     }
   };
 
@@ -220,12 +267,29 @@ export class HistoryPlugin {
 
     const originalState = this.dragStartStates.get(objectId);
 
+    let objectState: Record<string, unknown>;
+    if (originalState) {
+      objectState = originalState;
+    } else {
+      // Fallback: extract essential properties manually
+      objectState = {
+        id: objectId,
+        left: obj.left,
+        top: obj.top,
+        scaleX: obj.scaleX,
+        scaleY: obj.scaleY,
+        angle: obj.angle,
+        flipX: obj.flipX,
+        flipY: obj.flipY,
+      };
+    }
+
     const node: HistoryNode = {
       id: `${objectId}_${Date.now()}`,
       timestamp: Date.now(),
       type: "modify",
       objectId,
-      objectState: originalState ?? obj.toObject(),
+      objectState,
     };
 
     this.pushNode(node);
