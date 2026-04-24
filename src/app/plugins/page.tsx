@@ -588,12 +588,10 @@ export default function PluginsPage() {
               <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-[#f8fbff] shadow-[0_18px_60px_rgba(37,99,235,0.12)]">
                 <canvas ref={canvasElementRef} />
               </div>
-              {thumbnailEnabled && (
-                <div
-                  ref={thumbnailContainerRef}
-                  className="ml-4 h-[120px] w-[160px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
-                />
-              )}
+              <div
+                ref={thumbnailContainerRef}
+                className={`ml-4 h-[120px] w-[160px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50 transition-opacity ${thumbnailEnabled ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+              />
             </div>
 
             <div className="grid gap-3 border-t border-slate-200/80 px-5 py-4 text-xs text-slate-600 md:grid-cols-3">
