@@ -113,6 +113,43 @@ describe("HistoryPlugin Integration", () => {
     expect(canvas.remove).toHaveBeenCalled();
   });
 
+  it("undo add 调用 canvas.remove 删除对象", () => {
+    const canvas = createMockCanvas();
+    const plugin = new HistoryPlugin(canvas);
+    plugin.enable();
+
+    const obj = createMockObject("obj1");
+    canvas._objects.push(obj);
+
+    const handler = canvas.on.mock.calls.find((c: any[]) => c[0] === "object:added")[1];
+    handler({ target: obj });
+
+    expect(canvas._objects.length).toBe(1);
+    plugin.undo();
+    expect(canvas.remove).toHaveBeenCalled();
+  });
+
+  it("redo modify 重新应用对象状态", () => {
+    const canvas = createMockCanvas();
+    const plugin = new HistoryPlugin(canvas);
+    plugin.enable();
+
+    const obj = createMockObject("obj1");
+    obj.left = 100;
+    canvas._objects.push(obj);
+
+    const handler = canvas.on.mock.calls.find((c: any[]) => c[0] === "object:modified")[1];
+    handler({ target: obj });
+
+    obj.left = 200;
+    plugin.undo();
+    expect(obj.set).toHaveBeenCalled();
+
+    vi.mocked(obj.set).mockClear();
+    plugin.redo();
+    expect(obj.set).toHaveBeenCalled();
+  });
+
   it("连续 undo/redo 正确追踪 currentIndex", () => {
     const canvas = createMockCanvas();
     const plugin = new HistoryPlugin(canvas);
