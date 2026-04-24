@@ -23,7 +23,7 @@ export class ThumbnailPlugin {
   constructor(canvas: Canvas, options: ThumbnailPluginOptions) {
     this.canvas = canvas;
     this.options = { ...DEFAULT_OPTIONS, ...options };
-    this.resolveContainer(); // 验证容器
+    // 容器验证延迟到 enable() 时进行（DOM 可能尚未挂载）
   }
 
   private resolveContainer(): HTMLElement {

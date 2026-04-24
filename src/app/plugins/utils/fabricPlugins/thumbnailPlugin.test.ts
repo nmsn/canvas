@@ -324,7 +324,7 @@ describe("ThumbnailPlugin Constructor", () => {
     mockCreateElement.mockReset();
   });
 
-  it("should throw error when container is invalid string selector", () => {
+  it("should throw error when enable with invalid string selector", () => {
     // Arrange
     mockQuerySelector.mockReturnValue(null);
 
@@ -341,13 +341,15 @@ describe("ThumbnailPlugin Constructor", () => {
       setHeight: vi.fn(),
     };
 
-    // Act & Assert
+    const plugin = new ThumbnailPlugin(mockCanvas as any, { container: ".nonexistent" });
+
+    // Act & Assert - error should throw on enable(), not construction
     expect(() => {
-      new ThumbnailPlugin(mockCanvas as any, { container: ".nonexistent" });
+      plugin.enable();
     }).toThrow(/container ".nonexistent" not found/);
   });
 
-  it("should throw error when container function returns invalid", () => {
+  it("should throw error when enable with invalid container function", () => {
     // Arrange
     const mockCanvas = {
       on: vi.fn(),
@@ -362,9 +364,11 @@ describe("ThumbnailPlugin Constructor", () => {
       setHeight: vi.fn(),
     };
 
-    // Act & Assert
+    const plugin = new ThumbnailPlugin(mockCanvas as any, { container: () => null });
+
+    // Act & Assert - error should throw on enable(), not construction
     expect(() => {
-      new ThumbnailPlugin(mockCanvas as any, { container: () => null });
+      plugin.enable();
     }).toThrow(/container function must return a valid DOM element/);
   });
 });
