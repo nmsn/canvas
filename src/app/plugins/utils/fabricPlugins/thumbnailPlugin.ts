@@ -1,6 +1,6 @@
 "use client";
 
-import { Canvas, type FabricObject, util } from "fabric";
+import { Canvas, type FabricObject } from "fabric";
 import type { ThumbnailPluginOptions } from "./types";
 
 const DEFAULT_OPTIONS = {
@@ -13,12 +13,12 @@ const DEFAULT_OPTIONS = {
 
 export class ThumbnailPlugin {
   private readonly canvas: Canvas;
-  private thumbnailCanvas: Canvas | null = null;
   private container: HTMLElement | null = null;
-  private viewportRect: FabricObject | null = null;
   private readonly options: Required<ThumbnailPluginOptions>;
   private enabled = false;
   private resizeObserver: ResizeObserver | null = null;
+  private viewportRect: HTMLDivElement | null = null;
+  private imageElement: HTMLImageElement | null = null;
 
   constructor(canvas: Canvas, options: ThumbnailPluginOptions) {
     this.canvas = canvas;
@@ -50,11 +50,25 @@ export class ThumbnailPlugin {
     if (this.enabled) return;
     this.enabled = true;
 
-    // Create thumbnail canvas
+    // Create container elements
     this.container = this.resolveContainer();
-    const canvasEl = document.createElement('canvas') as HTMLCanvasElement;
-    this.container.appendChild(canvasEl);
-    this.thumbnailCanvas = new Canvas(canvasEl);
+
+    // Create image element for canvas snapshot
+    this.imageElement = document.createElement('img') as HTMLImageElement;
+    this.imageElement.style.width = '100%';
+    this.imageElement.style.height = '100%';
+    this.imageElement.style.objectFit = 'contain';
+    this.imageElement.style.display = 'block';
+    this.container.appendChild(this.imageElement);
+
+    // Create viewport rect overlay
+    this.viewportRect = document.createElement('div') as HTMLDivElement;
+    this.viewportRect.style.position = 'absolute';
+    this.viewportRect.style.border = `2px solid ${this.options.viewportStroke}`;
+    this.viewportRect.style.backgroundColor = this.options.viewportFill;
+    this.viewportRect.style.pointerEvents = 'none';
+    this.container.style.position = 'relative';
+    this.container.appendChild(this.viewportRect);
 
     // Setup ResizeObserver
     this.resizeObserver = new ResizeObserver(this.handleResize);
@@ -62,6 +76,7 @@ export class ThumbnailPlugin {
 
     // Register canvas event listeners
     this.canvas.on("after:render", this.handleAfterRender);
+    this.canvas.on("viewport:transformed", this.handleViewportTransform);
   }
 
   disable(): void {
@@ -72,8 +87,12 @@ export class ThumbnailPlugin {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
 
+    // Cleanup DOM elements
+    this.container!.innerHTML = '';
+
     // Unregister canvas event listeners
     this.canvas.off("after:render", this.handleAfterRender);
+    this.canvas.off("viewport:transformed", this.handleViewportTransform);
   }
 
   isEnabled(): boolean {
@@ -81,121 +100,72 @@ export class ThumbnailPlugin {
   }
 
   private handleAfterRender = () => {
-    this.syncObjects();
+    this.updateThumbnailImage();
     this.syncViewport();
   };
 
   private handleViewportTransform = () => {
-    // Will be implemented in later tasks
+    this.updateThumbnailImage();
     this.syncViewport();
   };
 
-  private syncViewport(): void {
-    // Will be fully implemented in later tasks
+  private updateThumbnailImage(): void {
+    if (!this.imageElement) return;
+
+    // Use lower canvas for faster rendering (without upper canvas elements)
+    const lowerCanvas = (this.canvas as any).lowerCanvasEl;
+    if (!lowerCanvas) return;
+
+    // Clone the canvas content as data URL
+    const dataUrl = lowerCanvas.toDataURL({
+      format: 'png',
+      quality: 0.5,
+      multiplier: 0.2, // Small multiplier for thumbnail
+    });
+
+    this.imageElement.src = dataUrl;
   }
 
-  private constrainViewportRect(): void {
-    if (!this.viewportRect || !this.thumbnailCanvas) return;
+  private syncViewport(): void {
+    if (!this.viewportRect || !this.container) return;
 
-    const bounds = this.viewportRect.getBoundingRect();
-    const canvasWidth = this.thumbnailCanvas.width || 1;
-    const canvasHeight = this.thumbnailCanvas.height || 1;
+    const mainViewport = this.canvas.viewportTransform;
+    const mainZoom = this.canvas.getZoom();
+    const containerRect = this.container.getBoundingClientRect();
 
-    let { left, top } = this.viewportRect as any;
+    // Calculate main canvas visible area
+    const visibleArea = {
+      x: -mainViewport[4] / mainZoom,
+      y: -mainViewport[5] / mainZoom,
+      width: this.canvas.width / mainZoom,
+      height: this.canvas.height / mainZoom,
+    };
 
-    // 左上角约束
-    left = Math.max(0, left);
-    top = Math.max(0, top);
+    // Calculate scale to fit thumbnail
+    const scaleX = containerRect.width / this.canvas.width;
+    const scaleY = containerRect.height / this.canvas.height;
+    const scale = Math.min(scaleX, scaleY);
 
-    // 右下角约束
-    left = Math.min(canvasWidth - bounds.width, left);
-    top = Math.min(canvasHeight - bounds.height, top);
+    // Calculate thumbnail viewport rect position
+    const thumbLeft = (visibleArea.x + this.canvas.width / 2 - visibleArea.width / 2) * scale;
+    const thumbTop = (visibleArea.y + this.canvas.height / 2 - visibleArea.height / 2) * scale;
+    const thumbWidth = visibleArea.width * scale;
+    const thumbHeight = visibleArea.height * scale;
 
-    this.viewportRect.set({ left, top });
-    this.viewportRect.setCoords();
+    // Apply viewport rect styles
+    this.viewportRect.style.left = `${thumbLeft}px`;
+    this.viewportRect.style.top = `${thumbTop}px`;
+    this.viewportRect.style.width = `${thumbWidth}px`;
+    this.viewportRect.style.height = `${thumbHeight}px`;
   }
 
   private handleResize = (): void => {
     if (!this.container) return;
     const { width, height } = this.container.getBoundingClientRect();
 
-    if (width === 0 || height === 0) return; // 跳过不可见状态
+    if (width === 0 || height === 0) return;
 
-    if (this.thumbnailCanvas) {
-      this.thumbnailCanvas.setDimensions({ width, height });
-    }
-    this.fitToContent();
+    this.updateThumbnailImage();
     this.syncViewport();
   };
-
-  private fitToContent(): void {
-    if (!this.thumbnailCanvas) return;
-
-    const objects = this.thumbnailCanvas.getObjects();
-    if (objects.length === 0) {
-      this.thumbnailCanvas.backgroundColor = this.options.backgroundColor;
-      this.thumbnailCanvas.requestRenderAll();
-      return;
-    }
-
-    // Calculate bounding box of all objects
-    let minX = Infinity,
-      minY = Infinity,
-      maxX = -Infinity,
-      maxY = -Infinity;
-    for (const obj of objects) {
-      const bounds = obj.getBoundingRect();
-      minX = Math.min(minX, bounds.left);
-      minY = Math.min(minY, bounds.top);
-      maxX = Math.max(maxX, bounds.left + bounds.width);
-      maxY = Math.max(maxY, bounds.top + bounds.height);
-    }
-
-    const contentWidth = maxX - minX;
-    const contentHeight = maxY - minY;
-    const canvasWidth = this.thumbnailCanvas.width || 1;
-    const canvasHeight = this.thumbnailCanvas.height || 1;
-
-    // Calculate scale ratio (with padding)
-    const padding = this.options.padding;
-    const availableWidth = canvasWidth - padding * 2;
-    const availableHeight = canvasHeight - padding * 2;
-    const scale = Math.min(
-      availableWidth / contentWidth,
-      availableHeight / contentHeight,
-      1
-    );
-
-    // Center content
-    const offsetX =
-      (canvasWidth - contentWidth * scale) / 2 - minX * scale;
-    const offsetY =
-      (canvasHeight - contentHeight * scale) / 2 - minY * scale;
-
-    this.thumbnailCanvas.setZoom(scale);
-    this.thumbnailCanvas.viewportTransform = [1, 0, 0, 1, offsetX, offsetY];
-    this.thumbnailCanvas.requestRenderAll();
-  }
-
-  private syncObjects(): void {
-    if (!this.thumbnailCanvas) return;
-
-    // 1. Clear thumbnail canvas
-    this.thumbnailCanvas.clear();
-
-    // 2. Iterate through main canvas objects, skip temporary objects
-    const objects = this.canvas
-      .getObjects()
-      .filter(
-        (obj: FabricObject) => !(obj as any).data?.isTemporary
-      );
-
-    // 3. Clone objects to thumbnail canvas (Fabric.js v7 clone is synchronous)
-    for (const obj of objects) {
-      const cloned = obj.clone() as FabricObject;
-      this.thumbnailCanvas.add(cloned);
-    }
-
-    this.fitToContent();
-  }
 }
