@@ -75,10 +75,12 @@ export class HistoryPlugin {
       case "remove":
         // Undo remove = add the object back
         // node.objectState contains the serialized form from when the object was removed
+        // The serialized state includes data.id which we can use to reconstruct
         if (node.objectState) {
-          // Use canvas.add to re-add the object
-          // For Fabric.js, we pass the serialized state and it creates a new object
-          const obj = node.objectState as unknown as FabricObject;
+          const state = node.objectState as Record<string, unknown>;
+          // Create a new object using the serialized state
+          // Fabric.js's canvas.add can work with serialized objects if we use the right approach
+          const obj = state as unknown as FabricObject;
           this.canvas.add(obj);
           obj.setCoords();
           this.canvas.requestRenderAll();

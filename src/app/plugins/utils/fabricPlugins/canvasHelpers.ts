@@ -125,6 +125,7 @@ export function createLabeledRect(params: {
   ) as Group & PluginCanvasObject;
   object.data = {
     ...(object.data ?? {}),
+    id: `rect_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     layoutWidth: width,
     layoutHeight: height,
   };
@@ -153,6 +154,7 @@ export function createCircleBadge(params: {
   }) as Circle & PluginCanvasObject;
   object.data = {
     ...(object.data ?? {}),
+    id: `circle_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     layoutWidth: radius * 2,
     layoutHeight: radius * 2,
   };
