@@ -76,35 +76,73 @@ export class HistoryPlugin {
     return this.currentIndex;
   }
 
-  private handleObjectAdded = (event: { target?: FabricObject }) => {
-    if (!event.target) return;
-    // Create a history node for the added object
-    const obj = event.target;
-    const node: HistoryNode = {
-      id: `history-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  private createNode(type: HistoryNode["type"], obj: FabricObject): HistoryNode {
+    const objectId = (obj.data as Record<string, unknown>)?.id as string || String(obj.data?.id) || `obj_${Date.now()}`;
+    return {
+      id: `${objectId}_${Date.now()}`,
       timestamp: Date.now(),
-      type: "add",
-      objectId: (obj as { id?: string }).id || "",
-      objectState: obj.toObject?.() || {},
+      type,
+      objectId,
+      objectState: obj.toObject(),
     };
-    // Remove any redo history when new action is performed
-    this.nodes = this.nodes.slice(0, this.currentIndex + 1);
+  }
+
+  private pushNode(node: HistoryNode) {
+    // Truncate any redo history when new action is taken
+    if (this.currentIndex < this.nodes.length - 1) {
+      this.nodes = this.nodes.slice(0, this.currentIndex + 1);
+    }
     this.nodes.push(node);
     this.currentIndex = this.nodes.length - 1;
+
     // Enforce max history size
     if (this.nodes.length > this.options.maxHistorySize) {
-      const diff = this.nodes.length - this.options.maxHistorySize;
-      this.nodes = this.nodes.slice(diff);
-      this.currentIndex -= diff;
+      this.nodes.shift();
+      this.currentIndex--;
     }
+
     this.options.onChange?.(this.canUndo(), this.canRedo());
+  }
+
+  private handleObjectAdded = (event: { target?: FabricObject }) => {
+    if (!event.target) return;
+    const node = this.createNode("add", event.target);
+    this.pushNode(node);
   };
 
   private handleObjectRemoved = (event: { target?: FabricObject }) => {
     if (!event.target) return;
+    const node = this.createNode("remove", event.target);
+    this.pushNode(node);
   };
 
   private handleObjectModified = (event: { target?: FabricObject }) => {
-    if (!event.target) return;
+    if (!event.target || !this.enabled) return;
+    const obj = event.target;
+    const objectId = (obj.data as Record<string, unknown>)?.id as string || String(obj.data?.id);
+
+    const now = Date.now();
+    const lastModify = this.modifyingObjects.get(objectId);
+
+    // Merge rapid modifications
+    if (lastModify && now - lastModify < this.options.mergeThresholdMs) {
+      const nodeIndex = this.nodes.findIndex(n => n.objectId === objectId && n.type === "modify");
+      if (nodeIndex > this.currentIndex) {
+        const node = this.createNode("modify", obj);
+        this.pushNode(node);
+      } else if (nodeIndex >= 0) {
+        this.nodes[nodeIndex] = { ...this.nodes[nodeIndex], objectState: obj.toObject(), timestamp: now };
+      }
+      this.modifyingObjects.set(objectId, now);
+    } else {
+      const node = this.createNode("modify", obj);
+      this.pushNode(node);
+      this.modifyingObjects.set(objectId, now);
+    }
+
+    // Clear modifying flag after threshold
+    setTimeout(() => {
+      this.modifyingObjects.delete(objectId);
+    }, this.options.mergeThresholdMs);
   };
 }
