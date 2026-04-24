@@ -127,7 +127,7 @@ export class HistoryPlugin {
   private handleObjectModified = (event: { target?: FabricObject }) => {
     if (!event.target || !this.enabled) return;
     const obj = event.target;
-    const objectId = (obj.data as Record<string, unknown>)?.id as string || String(obj.data?.id) || `obj_${Date.now()}`;
+    const objectId = (obj.data as Record<string, unknown>)?.id as string ?? String(obj.data?.id) ?? `obj_${Date.now()}`;
 
     const now = Date.now();
     const existingTimeout = this.modifyingObjects.get(objectId);
