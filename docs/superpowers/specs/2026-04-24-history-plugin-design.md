@@ -76,3 +76,65 @@ interface HistoryNode {
 - For `object:removed`, store the object's full serialized state for undo
 - For `object:modified`, store the object's state after modification
 - Object ID can be obtained from `object.data?.id` or generated via `fabric.util.objectId`
+
+## TDD Approach
+
+### Test File Location
+
+```
+src/app/plugins/utils/fabricPlugins/__tests__/historyPlugin.test.ts
+```
+
+### Test Structure
+
+1. **Unit tests for HistoryStack logic** — No Fabric.js dependency, test the pure history management logic
+2. **Integration tests with mocked Fabric.js** — Mock Canvas and FabricObject using the existing mock pattern (see `__mocks__/fabric.ts`)
+
+### Key Test Cases
+
+```typescript
+// Unit tests
+- "should push new node on add"
+- "should pop node on remove"
+- "should move pointer back on undo"
+- "should move pointer forward on redo"
+- "should not undo when at beginning"
+- "should not redo when at end"
+- "should trim history when max size exceeded"
+- "should merge rapid modifications within threshold"
+- "should not merge modifications beyond threshold"
+
+// Integration tests
+- "should call canvas.add() on undo of removed object"
+- "should call canvas.remove() on undo of added object"
+- "should restore object properties on undo of modified object"
+```
+
+### Mock Pattern
+
+Follow the existing mock pattern in `__mocks__/fabric.ts`:
+
+```typescript
+// Example mock structure
+const mockCanvas = {
+  on: vi.fn(),
+  off: vi.fn(),
+  getObjects: vi.fn().mockReturnValue([]),
+  add: vi.fn(),
+  remove: vi.fn(),
+  requestRenderAll: vi.fn(),
+};
+
+const mockFabricObject = {
+  toObject: vi.fn().mockReturnValue({ id: 'test-id', type: 'rect' }),
+  set: vi.fn(),
+  setCoords: vi.fn(),
+  data: { id: 'test-id' },
+};
+```
+
+### Running Tests
+
+```bash
+pnpm vitest run src/app/plugins/utils/fabricPlugins/__tests__/historyPlugin.test.ts
+```
