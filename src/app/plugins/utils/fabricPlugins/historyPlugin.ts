@@ -74,9 +74,13 @@ export class HistoryPlugin {
         break;
       case "remove":
         // Undo remove = add the object back
-        // The object was already removed from canvas by Fabric.js event
-        // We need to reconstruct it. For now, this is a no-op since
-        // we can't easily reconstruct without the canvas reference
+        // node.objectState contains the serialized form from when the object was removed
+        if (node.objectState) {
+          // Use canvas.add to re-add the object
+          // For Fabric.js, we pass the serialized state and it creates a new object
+          this.canvas.add(node.objectState as unknown as FabricObject);
+          this.canvas.requestRenderAll();
+        }
         break;
       case "modify":
         // Undo modify = restore previous state
