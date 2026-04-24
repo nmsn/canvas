@@ -187,4 +187,64 @@ describe("HistoryPlugin", () => {
       expect(plugin.getHistorySize()).toBe(3);
     });
   });
+
+  describe("undo", () => {
+    it("undo 移动 currentIndex 向后", () => {
+      const canvas = createMockCanvas();
+      const plugin = new HistoryPlugin(canvas);
+      plugin.enable();
+      const obj = createMockObject("obj1");
+      const handler = canvas.on.mock.calls.find((c: any[]) => c[0] === "object:added")[1];
+      handler({ target: obj });
+      expect(plugin.getCurrentIndex()).toBe(0);
+      plugin.undo();
+      expect(plugin.getCurrentIndex()).toBe(-1);
+    });
+
+    it("无历史时 undo 不执行", () => {
+      const canvas = createMockCanvas();
+      const plugin = new HistoryPlugin(canvas);
+      plugin.undo();
+      expect(plugin.canUndo()).toBe(false);
+    });
+  });
+
+  describe("redo", () => {
+    it("undo 后 redo 恢复 currentIndex", () => {
+      const canvas = createMockCanvas();
+      const plugin = new HistoryPlugin(canvas);
+      plugin.enable();
+      const obj = createMockObject("obj1");
+      const handler = canvas.on.mock.calls.find((c: any[]) => c[0] === "object:added")[1];
+      handler({ target: obj });
+      plugin.undo();
+      expect(plugin.getCurrentIndex()).toBe(-1);
+      plugin.redo();
+      expect(plugin.getCurrentIndex()).toBe(0);
+    });
+
+    it("无 redo 历史时 redo 不执行", () => {
+      const canvas = createMockCanvas();
+      const plugin = new HistoryPlugin(canvas);
+      plugin.redo();
+      expect(plugin.canRedo()).toBe(false);
+    });
+  });
+
+  describe("new action after undo", () => {
+    it("undo 后新操作清空 redo 历史", () => {
+      const canvas = createMockCanvas();
+      const plugin = new HistoryPlugin(canvas);
+      plugin.enable();
+      const obj1 = createMockObject("obj1");
+      const obj2 = createMockObject("obj2");
+      const addedHandler = canvas.on.mock.calls.find((c: any[]) => c[0] === "object:added")[1];
+      addedHandler({ target: obj1 });
+      addedHandler({ target: obj2 });
+      plugin.undo(); // undo obj2
+      const obj3 = createMockObject("obj3");
+      addedHandler({ target: obj3 }); // add obj3
+      expect(plugin.canRedo()).toBe(false);
+    });
+  });
 });

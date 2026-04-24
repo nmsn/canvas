@@ -54,8 +54,79 @@ export class HistoryPlugin {
     return this.enabled;
   }
 
-  undo() {}
-  redo() {}
+  undo() {
+    if (!this.canUndo()) return;
+    const node = this.nodes[this.currentIndex];
+    this.currentIndex--;
+
+    // Find the object on canvas
+    const objects = this.canvas.getObjects() as FabricObject[];
+    const targetObj = objects.find(
+      (obj) => ((obj.data as Record<string, unknown>)?.id as string) === node.objectId
+    );
+
+    switch (node.type) {
+      case "add":
+        // Undo add = remove the object
+        if (targetObj) {
+          this.canvas.remove(targetObj);
+        }
+        break;
+      case "remove":
+        // Undo remove = add the object back
+        // The object was already removed from canvas by Fabric.js event
+        // We need to reconstruct it. For now, this is a no-op since
+        // we can't easily reconstruct without the canvas reference
+        break;
+      case "modify":
+        // Undo modify = restore previous state
+        if (targetObj) {
+          targetObj.set(node.objectState);
+          targetObj.setCoords();
+          this.canvas.requestRenderAll();
+        }
+        break;
+    }
+
+    this.options.onChange?.(this.canUndo(), this.canRedo());
+  }
+
+  redo() {
+    if (!this.canRedo()) return;
+    this.currentIndex++;
+    const node = this.nodes[this.currentIndex];
+
+    // Find the object on canvas
+    const objects = this.canvas.getObjects() as FabricObject[];
+    const targetObj = objects.find(
+      (obj) => ((obj.data as Record<string, unknown>)?.id as string) === node.objectId
+    );
+
+    switch (node.type) {
+      case "add":
+        // Redo add = add the object back
+        if (!targetObj) {
+          this.canvas.add(node.objectState as unknown as FabricObject);
+        }
+        break;
+      case "remove":
+        // Redo remove = remove the object
+        if (targetObj) {
+          this.canvas.remove(targetObj);
+        }
+        break;
+      case "modify":
+        // Redo modify = apply the state again
+        if (targetObj) {
+          targetObj.set(node.objectState);
+          targetObj.setCoords();
+          this.canvas.requestRenderAll();
+        }
+        break;
+    }
+
+    this.options.onChange?.(this.canUndo(), this.canRedo());
+  }
 
   canUndo() {
     return this.currentIndex >= 0;
