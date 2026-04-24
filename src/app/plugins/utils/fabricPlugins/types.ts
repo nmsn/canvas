@@ -91,3 +91,13 @@ export interface SelectionPoolPluginOptions {
   selectedShadow?: string;           // 选中阴影，默认 '0 0 8px rgba(99,102,241,0.6)'
   onSelectionChange?: (objects: PluginCanvasObject[]) => void;  // 选中变化回调
 }
+
+// ThumbnailPlugin types
+export interface ThumbnailPluginOptions {
+  container: string | HTMLElement | (() => HTMLElement);
+  position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  backgroundColor?: string;
+  viewportStroke?: string;
+  viewportFill?: string;
+  padding?: number;
+}
