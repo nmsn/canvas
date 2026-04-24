@@ -12,6 +12,7 @@ import { Canvas } from 'fabric'
 import {
   ConnectionPlugin,
   DimensionPlugin,
+  HistoryPlugin,
   SelectionPoolPlugin,
   SortableSnapPlugin,
   ThumbnailPlugin,
@@ -101,9 +102,9 @@ export default function PluginsPage() {
   const sortablePluginRef = useRef<SortableSnapPlugin | null>(null)
   const connectionPluginRef = useRef<ConnectionPlugin | null>(null)
   const selectionPluginRef = useRef<SelectionPoolPlugin | null>(null)
-  const thumbnailPluginRef = useRef<ThumbnailPlugin | null>(null)
+const thumbnailPluginRef = useRef<ThumbnailPlugin | null>(null)
   const thumbnailContainerRef = useRef<HTMLDivElement | null>(null)
-  const rowOneCursorRef = useRef(60)
+  const historyPluginRef = useRef<HistoryPlugin | null>(null)
   const labelIndexRef = useRef(0)
   const logIdRef = useRef(0)
 
@@ -119,6 +120,7 @@ export default function PluginsPage() {
   const [connectionEnabled, setConnectionEnabled] = useState(false)
   const [selectionPoolEnabled, setSelectionPoolEnabled] = useState(false)
   const [thumbnailEnabled, setThumbnailEnabled] = useState(false)
+  const [historyEnabled, setHistoryEnabled] = useState(false)
 
   const appendLog = (message: string, type: PluginLogType = 'info') => {
     const item: LogItem = {
@@ -239,6 +241,13 @@ export default function PluginsPage() {
     })
     thumbnailPluginRef.current = thumbnailPlugin
 
+    const historyPlugin = new HistoryPlugin(canvas, {
+      onChange: (canUndo, canRedo) => {
+        appendLog(`撤销: ${canUndo ? '✓' : '✗'} 重做: ${canRedo ? '✓' : '✗'}`, 'info')
+      },
+    })
+    historyPluginRef.current = historyPlugin
+
     const handleCanvasMutation = () => updateStats()
     canvas.on('selection:created', handleCanvasMutation)
     canvas.on('selection:updated', handleCanvasMutation)
@@ -257,6 +266,7 @@ export default function PluginsPage() {
       connectionPlugin.disable()
       selectionPlugin.disable()
       thumbnailPlugin.disable()
+      historyPlugin.disable()
       canvas.dispose()
       canvasRef.current = null
       dimensionPluginRef.current = null
@@ -264,6 +274,7 @@ export default function PluginsPage() {
       connectionPluginRef.current = null
       selectionPluginRef.current = null
       thumbnailPluginRef.current = null
+      historyPluginRef.current = null
     }
   }, [])
 
@@ -436,6 +447,22 @@ export default function PluginsPage() {
     appendLog(`缩略图插件${enabled ? '已开启' : '已关闭'}`, 'info')
   }
 
+  const toggleHistoryPlugin = (enabled: boolean) => {
+    const plugin = historyPluginRef.current
+    if (!plugin) {
+      return
+    }
+
+    if (enabled) {
+      plugin.enable()
+    } else {
+      plugin.disable()
+    }
+
+    setHistoryEnabled(enabled)
+    appendLog(`历史记录插件${enabled ? '已开启' : '已关闭'}`, 'info')
+  }
+
   const addConnection = () => {
     const plugin = connectionPluginRef.current
     const canvas = canvasRef.current
@@ -493,6 +520,9 @@ export default function PluginsPage() {
             <span className={`rounded-full border px-3 py-1 text-[11px] font-medium ${thumbnailEnabled ? 'border-cyan-300 bg-cyan-50 text-cyan-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
               ThumbnailPlugin
             </span>
+            <span className={`rounded-full border px-3 py-1 text-[11px] font-medium ${historyEnabled ? 'border-orange-300 bg-orange-50 text-orange-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+              HistoryPlugin
+            </span>
             <Link
               href="/"
               className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 transition hover:border-slate-300 hover:text-slate-950"
@@ -540,6 +570,13 @@ export default function PluginsPage() {
               checked={thumbnailEnabled}
               onChange={toggleThumbnailPlugin}
             />
+            <PluginCard
+              active={historyEnabled}
+              description="记录画布操作历史，支持撤销和重做。"
+              title="历史记录"
+              checked={historyEnabled}
+              onChange={toggleHistoryPlugin}
+            />
 
             <SectionTitle title="添加元素" className="mt-6" />
             <div className="grid gap-2">
@@ -578,6 +615,8 @@ export default function PluginsPage() {
                 拖动元素体验锁轴换位和占位吸附，开启尺寸标注后可验证 overlay 绘制。
               </span>
               <div className="ml-auto flex gap-2">
+                <ToolbarButton onClick={() => historyPluginRef.current?.undo()}>↩ 撤销</ToolbarButton>
+                <ToolbarButton onClick={() => historyPluginRef.current?.redo()}>重做 ↪</ToolbarButton>
                 <ToolbarButton onClick={() => zoomCanvas(0.8)}>80%</ToolbarButton>
                 <ToolbarButton onClick={() => zoomCanvas(1)}>100%</ToolbarButton>
                 <ToolbarButton onClick={() => zoomCanvas(1.2)}>120%</ToolbarButton>
