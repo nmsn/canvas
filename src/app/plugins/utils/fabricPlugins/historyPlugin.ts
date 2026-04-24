@@ -16,6 +16,8 @@ export class HistoryPlugin {
   private nodes: HistoryNode[] = [];
   private currentIndex = -1;
   private dragStartStates = new Map<string, Record<string, unknown>>();
+  // Store states for redo of modify operations (object state BEFORE undo)
+  private redoStates = new Map<string, Record<string, unknown>>();
 
   constructor(canvas: Canvas, options: HistoryPluginOptions = {}) {
     this.canvas = canvas;
@@ -75,6 +77,8 @@ export class HistoryPlugin {
         break;
       case "modify":
         if (targetObj) {
+          // Store current state for redo before restoring original
+          this.redoStates.set(node.objectId, targetObj.toObject());
           targetObj.set(node.objectState);
           targetObj.setCoords();
           this.canvas.requestRenderAll();
@@ -106,13 +110,14 @@ export class HistoryPlugin {
         if (targetObj) this.canvas.remove(targetObj);
         break;
       case "modify":
-        // For redo, we need the state AFTER modification
-        // The next node in history contains the "after" state of THIS modify
-        // So we look at the node at currentIndex + 1 for the "after" state
-        // But that's complex. For now, skip modify redo.
-        // Actually, we stored "before" state in objectState for undo.
-        // For redo, we need "after" state. Let's store it in a way we can retrieve.
-        // Simplest: just request render, object is already at "after" position on canvas
+        if (targetObj) {
+          const redoState = this.redoStates.get(node.objectId);
+          if (redoState) {
+            targetObj.set(redoState);
+            targetObj.setCoords();
+            this.canvas.requestRenderAll();
+          }
+        }
         break;
     }
 
@@ -131,6 +136,7 @@ export class HistoryPlugin {
     this.nodes = [];
     this.currentIndex = -1;
     this.dragStartStates.clear();
+    this.redoStates.clear();
     this.options.onChange?.(this.canUndo(), this.canRedo());
   }
 
@@ -164,6 +170,9 @@ export class HistoryPlugin {
       this.nodes.shift();
       this.currentIndex--;
     }
+
+    // Clear redo states when new action is taken (like undo/redo stack in editors)
+    this.redoStates.clear();
 
     this.options.onChange?.(this.canUndo(), this.canRedo());
   }
