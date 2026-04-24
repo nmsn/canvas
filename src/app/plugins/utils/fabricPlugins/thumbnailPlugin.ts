@@ -190,22 +190,12 @@ export class ThumbnailPlugin {
         (obj: FabricObject) => !(obj as any).data?.isTemporary
       );
 
-    // 3. Clone objects to thumbnail canvas
-    const clonePromises = objects.map(
-      (obj) =>
-        new Promise<FabricObject>((resolve) => {
-          (obj as any).clone((cloned: FabricObject) => resolve(cloned));
-        })
-    );
-
-    Promise.all(clonePromises).then((clonedObjects) => {
-      clonedObjects.forEach((cloned) => this.thumbnailCanvas!.add(cloned));
-      this.fitToContent();
-    });
-
-    // If no objects, fitToContent anyway
-    if (objects.length === 0) {
-      this.fitToContent();
+    // 3. Clone objects to thumbnail canvas (Fabric.js v7 clone is synchronous)
+    for (const obj of objects) {
+      const cloned = obj.clone() as FabricObject;
+      this.thumbnailCanvas.add(cloned);
     }
+
+    this.fitToContent();
   }
 }
