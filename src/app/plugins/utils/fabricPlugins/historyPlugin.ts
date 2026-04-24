@@ -15,7 +15,7 @@ export class HistoryPlugin {
   private enabled = false;
   private nodes: HistoryNode[] = [];
   private currentIndex = -1;
-  private modifyingObjects = new Map<string, number>();
+  private modifyingObjects = new Map<string, { timestamp: number; timeoutId: ReturnType<typeof setTimeout> }>();
 
   constructor(canvas: Canvas, options: HistoryPluginOptions = {}) {
     this.canvas = canvas;
@@ -43,6 +43,10 @@ export class HistoryPlugin {
     this.canvas.off("object:added", this.handleObjectAdded);
     this.canvas.off("object:removed", this.handleObjectRemoved);
     this.canvas.off("object:modified", this.handleObjectModified);
+    // Clear all pending timeouts
+    for (const entry of this.modifyingObjects.values()) {
+      clearTimeout(entry.timeoutId);
+    }
     this.modifyingObjects.clear();
   }
 
@@ -64,6 +68,10 @@ export class HistoryPlugin {
   clear() {
     this.nodes = [];
     this.currentIndex = -1;
+    // Clear all pending timeouts
+    for (const entry of this.modifyingObjects.values()) {
+      clearTimeout(entry.timeoutId);
+    }
     this.modifyingObjects.clear();
     this.options.onChange?.(this.canUndo(), this.canRedo());
   }
@@ -77,7 +85,7 @@ export class HistoryPlugin {
   }
 
   private createNode(type: HistoryNode["type"], obj: FabricObject): HistoryNode {
-    const objectId = (obj.data as Record<string, unknown>)?.id as string || String(obj.data?.id) || `obj_${Date.now()}`;
+    const objectId = (obj.data as Record<string, unknown>)?.id as string ?? String(obj.data?.id) ?? `obj_${Date.now()}`;
     return {
       id: `${objectId}_${Date.now()}`,
       timestamp: Date.now(),
@@ -119,30 +127,35 @@ export class HistoryPlugin {
   private handleObjectModified = (event: { target?: FabricObject }) => {
     if (!event.target || !this.enabled) return;
     const obj = event.target;
-    const objectId = (obj.data as Record<string, unknown>)?.id as string || String(obj.data?.id);
+    const objectId = (obj.data as Record<string, unknown>)?.id as string || String(obj.data?.id) || `obj_${Date.now()}`;
 
     const now = Date.now();
-    const lastModify = this.modifyingObjects.get(objectId);
+    const existingTimeout = this.modifyingObjects.get(objectId);
 
     // Merge rapid modifications
-    if (lastModify && now - lastModify < this.options.mergeThresholdMs) {
-      const nodeIndex = this.nodes.findIndex(n => n.objectId === objectId && n.type === "modify");
-      if (nodeIndex > this.currentIndex) {
-        const node = this.createNode("modify", obj);
-        this.pushNode(node);
-      } else if (nodeIndex >= 0) {
+    if (existingTimeout && now - existingTimeout.timestamp < this.options.mergeThresholdMs) {
+      // Find the last modify node for this object (search backwards from currentIndex)
+      let nodeIndex = -1;
+      for (let i = this.currentIndex; i >= 0; i--) {
+        if (this.nodes[i].objectId === objectId && this.nodes[i].type === "modify") {
+          nodeIndex = i;
+          break;
+        }
+      }
+      if (nodeIndex >= 0) {
         this.nodes[nodeIndex] = { ...this.nodes[nodeIndex], objectState: obj.toObject(), timestamp: now };
       }
-      this.modifyingObjects.set(objectId, now);
+      // Clear previous timeout before setting new one
+      clearTimeout(existingTimeout.timeoutId);
     } else {
       const node = this.createNode("modify", obj);
       this.pushNode(node);
-      this.modifyingObjects.set(objectId, now);
     }
 
-    // Clear modifying flag after threshold
-    setTimeout(() => {
+    // Set new timeout and store both timestamp and timeoutId
+    const timeoutId = setTimeout(() => {
       this.modifyingObjects.delete(objectId);
     }, this.options.mergeThresholdMs);
+    this.modifyingObjects.set(objectId, { timestamp: now, timeoutId });
   };
 }
