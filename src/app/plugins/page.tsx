@@ -105,6 +105,7 @@ export default function PluginsPage() {
 const thumbnailPluginRef = useRef<ThumbnailPlugin | null>(null)
   const thumbnailContainerRef = useRef<HTMLDivElement | null>(null)
   const historyPluginRef = useRef<HistoryPlugin | null>(null)
+  const rowOneCursorRef = useRef(60)
   const labelIndexRef = useRef(0)
   const logIdRef = useRef(0)
 
