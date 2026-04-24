@@ -101,3 +101,18 @@ export interface ThumbnailPluginOptions {
   viewportFill?: string;
   padding?: number;
 }
+
+// HistoryPlugin types
+export interface HistoryNode {
+  id: string;
+  timestamp: number;
+  type: "add" | "remove" | "modify";
+  objectId: string;
+  objectState: Record<string, unknown>;
+}
+
+export interface HistoryPluginOptions {
+  maxHistorySize?: number;
+  mergeThresholdMs?: number;
+  onChange?: (canUndo: boolean, canRedo: boolean) => void;
+}
