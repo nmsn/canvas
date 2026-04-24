@@ -14,6 +14,7 @@ import {
   DimensionPlugin,
   SelectionPoolPlugin,
   SortableSnapPlugin,
+  ThumbnailPlugin,
   addGrid,
   businessObjectsCount,
   clearBusinessObjects,
@@ -100,6 +101,8 @@ export default function PluginsPage() {
   const sortablePluginRef = useRef<SortableSnapPlugin | null>(null)
   const connectionPluginRef = useRef<ConnectionPlugin | null>(null)
   const selectionPluginRef = useRef<SelectionPoolPlugin | null>(null)
+  const thumbnailPluginRef = useRef<ThumbnailPlugin | null>(null)
+  const thumbnailContainerRef = useRef<HTMLDivElement | null>(null)
   const rowOneCursorRef = useRef(60)
   const labelIndexRef = useRef(0)
   const logIdRef = useRef(0)
@@ -115,6 +118,7 @@ export default function PluginsPage() {
   const [sortableEnabled, setSortableEnabled] = useState(false)
   const [connectionEnabled, setConnectionEnabled] = useState(false)
   const [selectionPoolEnabled, setSelectionPoolEnabled] = useState(false)
+  const [thumbnailEnabled, setThumbnailEnabled] = useState(false)
 
   const appendLog = (message: string, type: PluginLogType = 'info') => {
     const item: LogItem = {
@@ -230,6 +234,11 @@ export default function PluginsPage() {
     })
     selectionPluginRef.current = selectionPlugin
 
+    const thumbnailPlugin = new ThumbnailPlugin(canvas, {
+      container: () => thumbnailContainerRef.current!,
+    })
+    thumbnailPluginRef.current = thumbnailPlugin
+
     const handleCanvasMutation = () => updateStats()
     canvas.on('selection:created', handleCanvasMutation)
     canvas.on('selection:updated', handleCanvasMutation)
@@ -247,12 +256,14 @@ export default function PluginsPage() {
       sortablePlugin.disable()
       connectionPlugin.disable()
       selectionPlugin.disable()
+      thumbnailPlugin.disable()
       canvas.dispose()
       canvasRef.current = null
       dimensionPluginRef.current = null
       sortablePluginRef.current = null
       connectionPluginRef.current = null
       selectionPluginRef.current = null
+      thumbnailPluginRef.current = null
     }
   }, [])
 
@@ -409,6 +420,22 @@ export default function PluginsPage() {
     appendLog(`选中池插件${enabled ? '已开启' : '已关闭'}`, 'info')
   }
 
+  const toggleThumbnailPlugin = (enabled: boolean) => {
+    const plugin = thumbnailPluginRef.current
+    if (!plugin) {
+      return
+    }
+
+    if (enabled) {
+      plugin.enable()
+    } else {
+      plugin.disable()
+    }
+
+    setThumbnailEnabled(enabled)
+    appendLog(`缩略图插件${enabled ? '已开启' : '已关闭'}`, 'info')
+  }
+
   const addConnection = () => {
     const plugin = connectionPluginRef.current
     const canvas = canvasRef.current
@@ -463,6 +490,9 @@ export default function PluginsPage() {
             <span className={`rounded-full border px-3 py-1 text-[11px] font-medium ${selectionPoolEnabled ? 'border-amber-300 bg-amber-50 text-amber-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
               SelectionPoolPlugin
             </span>
+            <span className={`rounded-full border px-3 py-1 text-[11px] font-medium ${thumbnailEnabled ? 'border-cyan-300 bg-cyan-50 text-cyan-700' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+              ThumbnailPlugin
+            </span>
             <Link
               href="/"
               className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm text-slate-600 transition hover:border-slate-300 hover:text-slate-950"
@@ -502,6 +532,13 @@ export default function PluginsPage() {
               title="选中池联动"
               checked={selectionPoolEnabled}
               onChange={toggleSelectionPoolPlugin}
+            />
+            <PluginCard
+              active={thumbnailEnabled}
+              description="在独立面板中渲染画布内容缩略图，视口框跟随主画布。"
+              title="缩略图预览"
+              checked={thumbnailEnabled}
+              onChange={toggleThumbnailPlugin}
             />
 
             <SectionTitle title="添加元素" className="mt-6" />
@@ -551,6 +588,12 @@ export default function PluginsPage() {
               <div className="overflow-hidden rounded-[24px] border border-slate-200 bg-[#f8fbff] shadow-[0_18px_60px_rgba(37,99,235,0.12)]">
                 <canvas ref={canvasElementRef} />
               </div>
+              {thumbnailEnabled && (
+                <div
+                  ref={thumbnailContainerRef}
+                  className="ml-4 h-[120px] w-[160px] overflow-hidden rounded-xl border border-slate-200 bg-slate-50"
+                />
+              )}
             </div>
 
             <div className="grid gap-3 border-t border-slate-200/80 px-5 py-4 text-xs text-slate-600 md:grid-cols-3">
