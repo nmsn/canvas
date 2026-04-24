@@ -47,3 +47,6 @@ export {
 
 export { ThumbnailPlugin } from "./thumbnailPlugin";
 export type { ThumbnailPluginOptions } from "./types";
+
+export { HistoryPlugin } from "./historyPlugin";
+export type { HistoryPluginOptions } from "./types";
