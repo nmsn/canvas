@@ -69,18 +69,20 @@ export class HistoryPlugin {
 
     switch (node.type) {
       case "add":
-        if (targetObj) this.canvas.remove(targetObj);
+        if (targetObj && typeof targetObj.remove === "function") this.canvas.remove(targetObj);
         break;
       case "remove":
         if (node.objectState) {
           const obj = node.objectState as unknown as FabricObject;
-          this.canvas.add(obj);
-          obj.setCoords();
-          this.canvas.requestRenderAll();
+          if (typeof this.canvas.add === "function") {
+            this.canvas.add(obj);
+            if (typeof obj.setCoords === "function") obj.setCoords();
+            this.canvas.requestRenderAll();
+          }
         }
         break;
       case "modify":
-        if (targetObj) {
+        if (targetObj && typeof targetObj.toObject === "function") {
           // Store current state for redo before restoring original
           this.redoStates.set(node.objectId, targetObj.toObject());
           targetObj.set(node.objectState);
@@ -108,16 +110,16 @@ export class HistoryPlugin {
 
     switch (node.type) {
       case "add":
-        if (!targetObj && node.objectState) {
+        if (!targetObj && node.objectState && typeof this.canvas.add === "function") {
           this.canvas.add(node.objectState as unknown as FabricObject);
           this.canvas.requestRenderAll();
         }
         break;
       case "remove":
-        if (targetObj) this.canvas.remove(targetObj);
+        if (targetObj && typeof targetObj.remove === "function") this.canvas.remove(targetObj);
         break;
       case "modify":
-        if (targetObj) {
+        if (targetObj && typeof targetObj.set === "function") {
           const redoState = this.redoStates.get(node.objectId);
           if (redoState) {
             targetObj.set(redoState);
